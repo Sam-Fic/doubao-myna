@@ -157,16 +157,28 @@ bash scripts/build-myna-hud.sh
 若渲染器未安装或启动失败，系统将静默降级至内置悬浮窗（`ui/overlay.py`）。
 
 ### GNOME Shell 扩展集成（原生定位）
-为实现 Myna 原生的窗口定位（跟随焦点显示器底部居中、避开 Dock、点击穿透），需安装配套 GNOME 扩展：
+Myna 的窗口定位**完全由 GNOME 扩展完成**，`myna-hud` 自己在 Wayland 下从不定位
+（Myna 源码 `extensions/myna-shell/place.js` 的注释写得很直白：*on Wayland a client
+cannot position itself, so the host computes the frame position and applies it with
+`move_frame`*）。所以想要原版定位，必须让 shell 加载这个扩展：
+
 ```bash
-# 1. 安装扩展
+# 1. 安装扩展（会自动给 resolve.js 打补丁：优先用 ~/.local/bin/myna-hud，不经 snap）
 bash scripts/install-gnome-extension.sh
 
-# 2. 注销并重新登录系统（确保 systemd --user 导入环境变量）
-
-# 3. 启用扩展
+# 2. 注销并重新登录一次（GNOME Shell 只在登录时读取 ~/.local/share/gnome-shell/extensions）
+#    重登后扩展自动启用；也可以手动确认：
 gnome-extensions enable myna-shell@canonical.com
 ```
+
+之后由扩展负责拉起 `myna-hud` 并把窗口摆到「当前有焦点窗口的显示器」底部居中
+（距工作区底边 24px、避开 panel 与 dash-to-dock、点击穿透、崩溃自动重启）。
+本项目检测到扩展启用（`org.gnome.shell enabled-extensions`）就不再自己拉进程，
+不会出现两个胶囊；万一扩展 5 秒内没把渲染器拉起来，会自己拉一个兜底
+（那时位置由混成器决定）。
+
+> ⚠️ **不装扩展会怎样**：`myna-hud` 是一个普通窗口，位置由混成器决定
+> （GNOME 上大致是屏幕中间）—— **Myna 自己不装扩展时也是这样**，不是本项目的 bug。
 安装脚本会自动配置 `MYNA_HUD_BINARY` 环境变量，使扩展直接调用本地编译的二进制文件，无需依赖 Snap。
 
 **环境兼容性与排查**：

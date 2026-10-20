@@ -78,6 +78,7 @@ class MynaHudBridge:
 
         self._ticker = 0
         self._hold_timer = 0
+        self._extension_grace = 0
         self._level_target = 0.0
         self._level_value = 0.0
         self._level_peak = 0.0
@@ -102,13 +103,30 @@ class MynaHudBridge:
                 # 扩展自己会拉起渲染器(并负责定位)。
                 logger.info("%s 已启用,由扩展拉起 myna-hud", "myna-shell")
                 self.renderer = True
+                # 兜底:扩展启用却拉不起来(没装渲染器/补丁没生效)时,
+                # 5 秒内还没有渲染器连上就自己拉一个 —— 宁可居中也不要没有。
+                # 5 秒是给扩展留的启动时间,免得两边同时拉出两个实例。
+                self._extension_grace = GLib.timeout_add_seconds(
+                    5, self._on_extension_grace
+                )
             else:
                 self.renderer = self._launcher.start()
         return True
 
+    def _on_extension_grace(self) -> bool:
+        self._extension_grace = 0
+        if self._publisher.client_count > 0:
+            return GLib.SOURCE_REMOVE  # 扩展已经拉起来了
+        logger.warning("扩展启用但 5 秒内没有渲染器连上,自己拉起一个兜底")
+        self.renderer = self._launcher.start()
+        return GLib.SOURCE_REMOVE
+
     def close(self) -> None:
         self._stop_ticker()
         self._clear_hold()
+        if self._extension_grace:
+            GLib.source_remove(self._extension_grace)
+            self._extension_grace = 0
         for hid in self._handler_ids:
             self._app_state.disconnect(hid)
         self._handler_ids = []

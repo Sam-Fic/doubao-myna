@@ -70,7 +70,7 @@
 | 提示停留 | notice 8–15s(按字数)、error 不自动消失 | notice 6s / error 10s(可在 `config.py` 改) | 🟡 |
 | 无渲染器时 | 桌面通知兜底(单条原地替换,Urgency=Normal) | 已实现(`ui/notifier.py`:单 id 原地替换、错误用 Urgent、notice 8–15s 自隐、文案不含转写) | ✅ |
 | 转写文本上屏 | 契约禁止(C3) | 有意偏离:`HUD_SHOW_TRANSCRIPT` 把最新一段文本放进 StatusMessage | 🟡 有意 |
-| 定位 | 扩展用 `Meta.WaylandClient` 收编 → 底部居中、避 dock | 装 `myna-shell` 扩展即一致;未装则由混成器摆位 | 🟡 见 README |
+| 定位 | 扩展用 `Meta.WaylandClient` 收编 → 底部居中、避 dock | 装 `myna-shell` 扩展即一致;**不装则 `myna-hud` 是普通窗口,由混成器摆位(GNOME 上≈屏幕中间)** —— Myna 自己不装扩展时也是如此(定位代码只在扩展里,`place.js` 注释明说 Wayland 客户端无法自定位) | 🟡 需装扩展 |
 
 ## 5. 设置窗口
 
