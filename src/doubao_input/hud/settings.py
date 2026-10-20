@@ -18,6 +18,7 @@ from doubao_input.doubao.config import (
     HUD_STYLE,
     INJECT_USE_SHIFT,
     SILENCE_TIMEOUT_SECS,
+    STOP_ON_FOCUS_LOSS,
     TRIGGER_KEY_NAME,
     TRIGGER_MODE,
     get_config_dir,
@@ -99,6 +100,14 @@ def load_trigger_mode() -> str:
 
 def save_trigger_mode(mode: str) -> None:
     set_value("trigger_mode", "toggle" if mode == "toggle" else "hold")
+
+
+def load_stop_on_focus_loss() -> bool:
+    return bool(get("stop_on_focus_loss", STOP_ON_FOCUS_LOSS))
+
+
+def save_stop_on_focus_loss(enabled: bool) -> None:
+    set_value("stop_on_focus_loss", bool(enabled))
 
 
 def load_silence_timeout() -> int:

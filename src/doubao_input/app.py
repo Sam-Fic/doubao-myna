@@ -25,6 +25,8 @@ from doubao_input.doubao.app_state import AppState, LoginStatus, RecordingState
 from doubao_input.doubao.asr_client import ASRClient
 from doubao_input.doubao.audio_capture import AudioCapture
 from doubao_input.doubao.config import (
+    FOCUS_CONFIRM_TICKS,
+    FOCUS_POLL_SECS,
     PASTE_DELAY,
     SILENCE_RMS_THRESHOLD,
 )
@@ -37,6 +39,7 @@ from doubao_input.hud.settings import (
     load_hud_style,
     load_inject_shift,
     load_silence_timeout,
+    load_stop_on_focus_loss,
     load_trigger_key,
     load_trigger_mode,
     save_desktop_shortcut,
@@ -44,6 +47,7 @@ from doubao_input.hud.settings import (
     save_hud_style,
     save_inject_shift,
     save_silence_timeout,
+    save_stop_on_focus_loss,
     save_trigger_key,
     save_trigger_mode,
 )
@@ -52,6 +56,7 @@ from doubao_input.inject.injector import Injector
 from doubao_input.trigger.desktop_shortcut import DesktopShortcut
 from doubao_input.trigger.evdev_ptt import EvdevPtt
 from doubao_input.ui.control_window import ControlWindow
+from doubao_input.ui.focus_watch import focused_identity, reason, supported
 from doubao_input.ui.overlay import Overlay
 
 logger = logging.getLogger(__name__)
@@ -87,8 +92,12 @@ class DoubaoInputApp(Gtk.Application):
         self._silence_timeout = load_silence_timeout()
         self._desktop_shortcut = load_desktop_shortcut()
         self._shortcut = DesktopShortcut()
+        self._stop_on_focus_loss = load_stop_on_focus_loss()
         self._last_voice_at = 0.0
         self._silence_timer = 0
+        self._focus_timer = 0
+        self._focus_change_count = 0
+        self._session_focus: str | None = None
 
     # ---- Gtk.Application hooks (signal handlers, not do_*) ----
 
@@ -251,6 +260,14 @@ class DoubaoInputApp(Gtk.Application):
         if self._overlay is not None and not self._use_hud:
             self._overlay.set_text(message)
 
+    def _indicator_notice(self, message: str) -> None:
+        """可恢复提示(对齐 Myna 的 notice):不是错误,几秒后自己消失。"""
+        if self._use_hud and self._hud is not None:
+            self._hud.notice(message)
+        elif self._overlay is not None:
+            self._overlay.show(message)
+            GLib.timeout_add_seconds(2, lambda: (self._overlay.hide(), False)[1])
+
     def _indicator_hide(self) -> None:
         if self._hud is not None:
             self._hud.idle()
@@ -334,6 +351,10 @@ class DoubaoInputApp(Gtk.Application):
             desktop_shortcut=self.desktop_shortcut(),
             desktop_shortcut_supported=self.desktop_shortcut_supported(),
             on_desktop_shortcut_changed=self.set_desktop_shortcut,
+            stop_on_focus_loss=self._stop_on_focus_loss,
+            focus_loss_supported=self.focus_loss_supported(),
+            focus_loss_reason=self.focus_loss_reason(),
+            on_stop_on_focus_loss_changed=self.set_stop_on_focus_loss,
         )
 
         # ---- Initial state: cached params? ----
@@ -402,12 +423,67 @@ class DoubaoInputApp(Gtk.Application):
         self._last_voice_at = time.monotonic()
         self._tm.handle_press()
         self._start_silence_watch()
+        self._start_focus_watch()
 
     def _stop_session(self) -> None:
         if not self._tm:
             return
         self._stop_silence_watch()
+        self._stop_focus_watch()
         self._tm.handle_release()
+
+    # ---- 焦点离开就结束(可选开关,对齐 Myna 的 Focus lost) ----
+
+    def set_stop_on_focus_loss(self, enabled: bool) -> None:
+        self._stop_on_focus_loss = bool(enabled)
+        save_stop_on_focus_loss(self._stop_on_focus_loss)
+        if not enabled:
+            self._stop_focus_watch()
+
+    def focus_loss_supported(self) -> bool:
+        return supported()
+
+    def focus_loss_reason(self) -> str:
+        return reason()
+
+    def _start_focus_watch(self) -> None:
+        if not self._stop_on_focus_loss or not supported() or self._focus_timer:
+            return
+        self._session_focus = focused_identity()
+        self._focus_change_count = 0
+        if not self._session_focus:
+            logger.info("焦点探测拿不到窗口标识,本次不监视焦点")
+            return
+        self._focus_timer = GLib.timeout_add_seconds(
+            max(1, FOCUS_POLL_SECS), self._focus_tick
+        )
+
+    def _stop_focus_watch(self) -> None:
+        if self._focus_timer:
+            GLib.source_remove(self._focus_timer)
+            self._focus_timer = 0
+        self._session_focus = None
+
+    def _focus_tick(self) -> bool:
+        if self.app_state.recording_state == RecordingState.IDLE:
+            self._focus_timer = 0
+            return GLib.SOURCE_REMOVE
+        current = focused_identity()
+        if current and self._session_focus and current != self._session_focus:
+            # X11/XWayland 下这个 id 偶尔会抖,连续两次都是新值才认定焦点真走了。
+            self._focus_change_count += 1
+            if self._focus_change_count < FOCUS_CONFIRM_TICKS:
+                return GLib.SOURCE_CONTINUE
+            logger.info("焦点已离开(→ %s),结束本次听写", current)
+            self._stop_focus_watch()
+            self._stop_silence_watch()
+            if self._tm is not None:
+                # Myna 的语义:焦点丢失时**丢弃**已识别的文本,不注入。
+                self._tm.handle_cancel()
+            self._indicator_notice("焦点已离开,本次未输入")
+            return GLib.SOURCE_REMOVE
+        self._focus_change_count = 0
+        return GLib.SOURCE_CONTINUE
 
     # ---- 静音自动结束(Myna 的 silence-timeout) ----
 
@@ -438,11 +514,7 @@ class DoubaoInputApp(Gtk.Application):
 
     def _on_empty_result(self) -> None:
         """说完但没识别到内容 → 可恢复提示(Myna 的 “No speech detected”)。"""
-        if self._use_hud and self._hud is not None:
-            self._hud.notice(STATUS_EMPTY)
-        elif self._overlay is not None:
-            self._overlay.show(STATUS_EMPTY)
-            GLib.timeout_add_seconds(2, lambda: (self._overlay.hide(), False)[1])
+        self._indicator_notice(STATUS_EMPTY)
 
     def _on_ptt_error(self, msg: str) -> None:
         logger.warning("PTT error: %s", msg)
@@ -482,6 +554,11 @@ class DoubaoInputApp(Gtk.Application):
             logger.info("_do_paste: now injecting %r", text[:30])
             ok = self._injector.inject(text, use_shift=self._inject_shift)
             logger.info("_do_paste: injector.inject returned %s", ok)
+            if not ok:
+                # Myna 的原则:失败要作为本次的错误上报,绝不静默丢字。
+                self._indicator_notice("粘贴失败,文字仍在剪贴板,可手动 Ctrl+Shift+V")
+                if self._control is not None:
+                    self._control.toast("粘贴失败,文字仍在剪贴板")
             # Restore control window
             def restore_control():
                 if (

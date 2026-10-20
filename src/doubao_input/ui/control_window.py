@@ -99,6 +99,10 @@ class ControlWindow:
         desktop_shortcut: str = "",
         desktop_shortcut_supported: bool = False,
         on_desktop_shortcut_changed: Optional[Callable[[str], Any]] = None,
+        stop_on_focus_loss: bool = False,
+        focus_loss_supported: bool = False,
+        focus_loss_reason: str = "",
+        on_stop_on_focus_loss_changed: Optional[Callable[[bool], None]] = None,
     ) -> None:
         self._app_state = app_state
         self._on_login = on_login_clicked
@@ -122,6 +126,10 @@ class ControlWindow:
         self._desktop_shortcut = desktop_shortcut
         self._desktop_shortcut_supported = desktop_shortcut_supported
         self._on_desktop_shortcut_changed = on_desktop_shortcut_changed
+        self._stop_on_focus_loss = stop_on_focus_loss
+        self._focus_loss_supported = focus_loss_supported
+        self._focus_loss_reason = focus_loss_reason
+        self._on_stop_on_focus_loss_changed = on_stop_on_focus_loss_changed
         self._shortcut_keycap: Optional[Gtk.Label] = None
         self._shortcut_button: Optional[Gtk.Button] = None
         self._shortcut_row = None
@@ -280,6 +288,16 @@ class ControlWindow:
         )
         silence_row.connect("notify::value", self._on_silence_changed)
         dictation_group.add(silence_row)
+
+        # 焦点离开就结束(可选;探测不到焦点时置灰并说明原因)
+        focus_row = Adw.SwitchRow(
+            title="焦点离开时结束",
+            subtitle=self._focus_loss_reason or "Myna 的行为:焦点一离开就丢弃本次内容",
+        )
+        focus_row.set_active(self._stop_on_focus_loss)
+        focus_row.set_sensitive(self._focus_loss_supported)
+        focus_row.connect("notify::active", self._on_focus_loss_switch)
+        dictation_group.add(focus_row)
 
         inject_group = Adw.PreferencesGroup(title="粘贴方式")
         input_page.add(inject_group)
@@ -586,6 +604,12 @@ class ControlWindow:
         self._silence_timeout = seconds
         if self._on_silence_timeout_changed is not None:
             self._on_silence_timeout_changed(seconds)
+
+    def _on_focus_loss_switch(self, row, *_args) -> None:
+        active = row.get_active() if hasattr(row, "get_active") else False
+        self._stop_on_focus_loss = bool(active)
+        if self._on_stop_on_focus_loss_changed is not None:
+            self._on_stop_on_focus_loss_changed(bool(active))
 
     def _on_hud_style_selected(self, row, _param) -> None:
         index = row.get_selected()

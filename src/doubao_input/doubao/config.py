@@ -104,6 +104,13 @@ TRIGGER_KEY_NAME = "KEY_RIGHTCTRL"
 # hold   = 按住说话,松开即结束(豆包原生交互)
 # toggle = 按一下开始、再按一下结束(**Myna 的交互**)
 TRIGGER_MODE = "hold"
+# 焦点离开目标窗口就结束本次听写(Myna 的行为)。探测是 best-effort:
+# Wayland 下第三方进程读不到别的窗口的焦点,那时这个开关不生效(见 ui/focus_watch.py)。
+STOP_ON_FOCUS_LOSS = False
+FOCUS_POLL_SECS = 1
+# 连续几次读到"焦点变了"才真结束,免得 X11/XWayland 的 id 抖动误伤。
+FOCUS_CONFIRM_TICKS = 2
+
 # 静音多久自动结束(秒);0 = 永不自动结束。对齐 Myna 的 silence-timeout(默认 30)。
 SILENCE_TIMEOUT_SECS = 30
 # 判定"有人声"的 RMS 门限(0~1)。低于它就算静音。
