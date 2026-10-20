@@ -126,6 +126,12 @@ TRIGGER_KEY_CHOICES = [
     ("KEY_COMPOSE", "Menu"),
 ]
 
+# 触发方式(hold / toggle → 显示名)。设置窗口与首次运行向导共用同一张表。
+TRIGGER_MODE_CHOICES = [
+    ("hold", "按住说话(松开即结束)"),
+    ("toggle", "按一下开始 / 再按一下结束"),
+]
+
 # 焦点离开目标窗口就结束本次听写(Myna 的行为)。探测是 best-effort:
 # Wayland 下第三方进程读不到别的窗口的焦点,那时这个开关不生效(见 ui/focus_watch.py)。
 STOP_ON_FOCUS_LOSS = False
@@ -152,7 +158,7 @@ TOGGLE_COMMAND = (
 # com.canonical.Myna.Dictation 只消费"状态 + 电平"。
 HUD_ENABLED = True              # 也可以在控制窗口里实时开关(记在 hud.json)
 HUD_AUTO_LAUNCH = True          # 自动拉起 myna-hud 进程
-HUD_STYLE = "ribbon"            # bar | ribbon | vumeter | progress
+HUD_STYLE = "bar"                 # bar | ribbon | vumeter | progress
 # Myna 的胶囊只显示状态标签(契约 C3 不传识别内容)。豆包的卖点是边说边出字,
 # 所以这里把最新一段识别文本放进 StatusMessage —— 这是一处有意的偏离,
 # 关掉它就退回"聆听中…"这类固定文案。

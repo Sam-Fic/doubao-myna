@@ -30,7 +30,7 @@ from typing import Any, Callable, Optional
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import GLib, Gio, Gtk  # type: ignore
+from gi.repository import GLib, Gdk, Gio, Gtk  # type: ignore
 
 from doubao_input.doubao.app_state import AppState, LoginStatus
 from doubao_input.doubao.config import (
@@ -39,7 +39,17 @@ from doubao_input.doubao.config import (
     SILENCE_TIMEOUT_SECS,
     TRIGGER_KEY_NAME,
     TRIGGER_MODE,
+    TRIGGER_MODE_CHOICES,
     get_params_path,
+)
+from doubao_input.ui.adw_compat import (
+    HAS_ADW as _HAS_ADW,
+    Adw,
+    copy_text as _copy_text,
+    icon_name as _icon_name,
+    set_shortcut_text as _set_shortcut_text,
+    set_subtitle as _set_subtitle,
+    shortcut_widget as _shortcut_widget,
 )
 from doubao_input.ui.shortcut_capture import start_capture
 
@@ -59,10 +69,10 @@ TRIGGER_KEY_CHOICES = [
     ("KEY_COMPOSE", "Menu"),
 ]
 
-#: 胶囊波形样式(Myna 的 hud-style 取值)
+#: 胶囊波形样式(Myna 的 hud-style 取值;Default 排第一)
 HUD_STYLE_CHOICES = [
-    ("ribbon", "Ribbon(波浪)"),
     ("bar", "Default(电平条)"),
+    ("ribbon", "Ribbon(波浪)"),
     ("vumeter", "VU meter"),
 ]
 
@@ -71,99 +81,26 @@ logger = logging.getLogger(__name__)
 #: hicolor 主题里的图标名,由 .deb 安装为 scalable SVG(图标取自 Myna)。
 _ICON_NAME = "doubao-input"
 
-try:
-    gi.require_version("Adw", "1")
-    from gi.repository import Adw  # type: ignore
-
-    Adw.init()
-    _HAS_ADW = True
-except Exception as e:  # pragma: no cover - 只在缺 libadwaita 时发生
-    Adw = None  # type: ignore
-    _HAS_ADW = False
-    logger.info("libadwaita unavailable (%s); using the plain GTK window", e)
+#: 诊断报告的卡片样式(圆角 + 跟随主题的底色/边框)。
+_report_card_provider = None
 
 
-# ---- libadwaita 小工具(老版本上按需降级) ----
-
-
-def _adw_has(name: str) -> bool:
-    """当前 libadwaita 是否提供某个类。"""
-    return _HAS_ADW and hasattr(Adw, name)
-
-
-def _button_content(icon_name: str, label: str) -> Gtk.Widget:
-    """按钮内容:图标 + 文字(Adw.ButtonContent,libadwaita ≥ 1.6)。"""
-    if _adw_has("ButtonContent"):
-        content = Adw.ButtonContent()
-        content.set_icon_name(icon_name)
-        content.set_label(label)
-        return content
-    return Gtk.Label(label=label)
-
-
-def _set_button_content_label(content: Optional[Gtk.Widget], label: str) -> None:
-    """更新 _button_content() 造出来的按钮文字。"""
-    if content is None:
-        return
-    if _adw_has("ButtonContent") and isinstance(content, Adw.ButtonContent):
-        content.set_label(label)
-    elif isinstance(content, Gtk.Label):
-        content.set_text(label)
-
-
-def _shortcut_widget(accelerator: str, empty_text: str = "未设置") -> Gtk.Widget:
-    """键帽展示(Adw.ShortcutLabel;老 libadwaita 回落到自带 .keycap 样式)。"""
-    if _adw_has("ShortcutLabel"):
-        widget = Adw.ShortcutLabel()
-        widget.set_accelerator(accelerator or "")
-        widget.set_disabled_text(empty_text)
-        return widget
-    label = Gtk.Label(label=accelerator or empty_text)
-    label.add_css_class("keycap")
-    return label
-
-
-def _set_shortcut_text(
-    widget: Optional[Gtk.Widget], accelerator: str, empty_text: str = "未设置"
-) -> None:
-    """更新键帽显示。"""
-    if widget is None:
-        return
-    if isinstance(widget, Gtk.Label):
-        widget.set_text(accelerator or empty_text)
-        return
-    try:
-        widget.set_accelerator(accelerator or "")
-        widget.set_disabled_text(empty_text)
-    except Exception:
-        pass
-
-
-def _set_subtitle(row: Any, text: str) -> None:
-    """写行的副标题。
-
-    副标题按纯文本处理(内部转义),这样状态文案里出现 < > 也不会破坏排版。
-    """
-    if row is None:
-        return
-    try:
-        row.set_use_markup(True)
-    except Exception:
-        pass
-    row.set_subtitle(GLib.markup_escape_text(text))
-
-
-def _copy_text(text: str) -> bool:
-    """把文本写进剪贴板(wayland / x11 都走 Gdk 的通用接口)。"""
-    try:
-        from gi.repository import Gdk  # type: ignore
-
-        clipboard = Gdk.Display.get_default().get_clipboard()
-        clipboard.set(Gdk.ContentProvider.new_for_value(text))
-        return True
-    except Exception as e:
-        logger.warning("clipboard write failed: %s", e)
-        return False
+def _report_card_css():
+    """诊断报告框的 CSS(方框改圆角卡片)。只创建一次。"""
+    global _report_card_provider
+    if _report_card_provider is None:
+        provider = Gtk.CssProvider()
+        provider.load_from_data(
+            ".report-card {"
+            "  border-radius: 12px;"
+            "  background-color: @view_bg_color;"
+            "  border: 1px solid @borders;"
+            "  padding: 4px;"
+            "}"
+            ".report-card textview { background: transparent; }"
+        )
+        _report_card_provider = provider
+    return _report_card_provider
 
 
 class ControlWindow:
@@ -248,11 +185,12 @@ class ControlWindow:
         self._status_label: Optional[Gtk.Label] = None
         self._account_row = None
         self._login_button: Optional[Gtk.Button] = None
-        self._login_button_content: Optional[Gtk.Widget] = None
         self._hud_status_row = None
         self._hud_status_label: Optional[Gtk.Label] = None
         self._hud_row = None
         self._hud_style_row = None
+        self._trigger_key_row = None
+        self._trigger_mode_row = None
         self._banner = None
         self._toast_overlay = None
         self._app_state.connect("login-status-changed", self._on_status_changed)
@@ -282,15 +220,41 @@ class ControlWindow:
             return
         self._toast_overlay.add_toast(Adw.Toast.new(message))
 
+    def refresh_trigger_settings(self, key: str, mode: str) -> None:
+        """外部(向导)改了触发键 / 触发方式后,把这两行同步过来。
+
+        不直接 set_selected 之前先比对,避免和 notify::selected 回调互相触发。
+        """
+        self._trigger_key = key
+        self._trigger_mode = "toggle" if mode == "toggle" else "hold"
+        if self._trigger_key_row is not None:
+            for index, (value, _name) in enumerate(TRIGGER_KEY_CHOICES):
+                if value == self._trigger_key:
+                    self._trigger_key_row.set_selected(index)
+                    break
+        if self._trigger_mode_row is not None:
+            for index, (value, _name) in enumerate(TRIGGER_MODE_CHOICES):
+                if value == self._trigger_mode:
+                    self._trigger_mode_row.set_selected(index)
+                    break
+
     # ---- internals ----
 
     def _ensure_window(self) -> None:
         if self._window is not None:
             return
         if _HAS_ADW:
-            self._ensure_adw_window()
-        else:
-            self._ensure_legacy_window()
+            try:
+                self._ensure_adw_window()
+                return
+            except Exception:
+                # Adw 窗口构建失败(比如系统上的 libadwaita 有坑、组件被裁剪):
+                # 退到纯 GTK4 窗口,总比一个窗口都不显示强。
+                # (曾经在这里崩掉,结果应用活着却什么都不显示,用户只看到
+                #  「启动没反应」。)
+                logger.exception("Adw 窗口构建失败,退回纯 GTK4 窗口")
+                self._window = None
+        self._ensure_legacy_window()
 
     # ---------- libadwaita:与 Myna Settings 同款 ----------
 
@@ -342,14 +306,14 @@ class ControlWindow:
         account.add(group)
 
         self._account_row = Adw.ActionRow(title="登录状态", subtitle="检测中…")
-        self._account_icon = Gtk.Image.new_from_icon_name("emblem-synchronizing-symbolic")
+        self._account_icon = Gtk.Image.new_from_icon_name(
+            _icon_name("content-loading-symbolic", "emblem-synchronizing-symbolic")
+        )
         self._account_icon.set_pixel_size(16)
         self._account_row.add_prefix(self._account_icon)
-        self._login_button = Gtk.Button()
+        self._login_button = Gtk.Button.new_with_label("登录豆包")
         self._login_button.set_valign(Gtk.Align.CENTER)
         self._login_button.add_css_class("suggested-action")
-        self._login_button_content = _button_content("system-users-symbolic", "登录豆包")
-        self._login_button.set_child(self._login_button_content)
         self._login_button.connect("clicked", lambda *_: self._on_login())
         self._account_row.add_suffix(self._login_button)
         self._account_row.set_activatable_widget(self._login_button)
@@ -357,9 +321,8 @@ class ControlWindow:
 
         creds = Adw.ActionRow(title="凭证文件", subtitle=str(get_params_path()))
         creds.set_subtitle_selectable(True)
-        copy_path = Gtk.Button()
+        copy_path = Gtk.Button.new_with_label("复制")
         copy_path.set_valign(Gtk.Align.CENTER)
-        copy_path.set_child(_button_content("edit-copy-symbolic", "复制"))
         copy_path.set_tooltip_text("复制凭证文件路径")
         copy_path.connect("clicked", lambda *_: self._copy_creds_path())
         creds.add_suffix(copy_path)
@@ -404,16 +367,17 @@ class ControlWindow:
                 key_row.set_selected(index)
         key_row.connect("notify::selected", self._on_trigger_key_selected)
         trigger_group.add(key_row)
+        self._trigger_key_row = key_row
 
         # 触发模式
         mode_row = Adw.ComboRow(
             title="触发方式",
-            subtitle="「按一下开始」是 Myna 的交互;「按住说话」是豆包原生的",
         )
-        mode_row.set_model(Gtk.StringList.new(["按住说话(松开即结束)", "按一下开始 / 再按一下结束"]))
+        mode_row.set_model(Gtk.StringList.new([name for _, name in TRIGGER_MODE_CHOICES]))
         mode_row.set_selected(1 if self._trigger_mode == "toggle" else 0)
         mode_row.connect("notify::selected", self._on_trigger_mode_selected)
         trigger_group.add(mode_row)
+        self._trigger_mode_row = mode_row
 
         dictation_group = Adw.PreferencesGroup(title="听写")
         input_page.add(dictation_group)
@@ -423,16 +387,19 @@ class ControlWindow:
             subtitle="0 = 不自动结束(对齐 Myna 的 silence-timeout)",
         )
         silence_row.set_numeric(True)
-        silence_row.set_adjustment(
-            Gtk.Adjustment(
-                value=self._silence_timeout,
-                lower=0,
-                upper=600,
-                step_increment=1,
-                page_increment=10,
-                climb_rate=1.0,
-            )
+        adjustment = Gtk.Adjustment(
+            value=self._silence_timeout,
+            lower=0,
+            upper=600,
+            step_increment=1,
+            page_increment=10,
         )
+        try:
+            # 长按微调时的加速速率(Gtk.Adjustment 构造参数里没有,得单独设)。
+            adjustment.set_climb_rate(1.0)
+        except Exception:
+            pass
+        silence_row.set_adjustment(adjustment)
         silence_row.connect("notify::value", self._on_silence_changed)
         dictation_group.add(silence_row)
 
@@ -450,7 +417,7 @@ class ControlWindow:
         sounds_row = Adw.SwitchRow(
             title="提示音",
             subtitle="开始 / 结束 / 错误时播放"
-            + ("" if self._sounds_supported else "（未找到 canberra-gtk-play，不会响）"),
+            + ("" if self._sounds_supported else "（找不到可用的播放工具，不会响）"),
         )
         sounds_row.set_active(self._sounds)
         sounds_row.set_sensitive(self._sounds_supported)
@@ -492,18 +459,6 @@ class ControlWindow:
         # 波形样式只影响 Myna 胶囊:没开胶囊时置灰,免得用户以为能改内置窗。
         style_row.set_sensitive(self._hud_enabled)
 
-        self._usage_group = Adw.PreferencesGroup(
-            title="使用方式",
-            description=self._usage_text(),
-        )
-        input_page.add(self._usage_group)
-        self._usage_group.add(
-            Adw.ActionRow(
-                title="终端粘贴",
-                subtitle="若粘贴失败,文字仍在剪贴板,可手动 Ctrl+Shift+V",
-            )
-        )
-
         # --- 诊断 ---
         diag = Adw.PreferencesPage()
         diag.set_title("诊断")
@@ -512,9 +467,8 @@ class ControlWindow:
         diag.add(self_group)
 
         mic_row = Adw.ActionRow(title="麦克风", subtitle="采集 3 秒并输出 RMS 峰值")
-        mic_button = Gtk.Button()
+        mic_button = Gtk.Button.new_with_label("检查")
         mic_button.set_valign(Gtk.Align.CENTER)
-        mic_button.set_child(_button_content("audio-microphone-symbolic", "检查"))
         mic_button.connect("clicked", lambda *_: self._on_check_mic())
         mic_row.add_suffix(mic_button)
         mic_row.set_activatable_widget(mic_button)
@@ -523,9 +477,8 @@ class ControlWindow:
         paste_row = Adw.ActionRow(
             title="粘贴链路", subtitle="注入一段固定文本,验证 wl-copy + uinput"
         )
-        paste_button = Gtk.Button()
+        paste_button = Gtk.Button.new_with_label("测试")
         paste_button.set_valign(Gtk.Align.CENTER)
-        paste_button.set_child(_button_content("edit-paste-symbolic", "测试"))
         if self._on_test_inject is not None:
             paste_button.connect("clicked", lambda *_: self._on_test_inject())
         else:
@@ -547,10 +500,9 @@ class ControlWindow:
         quit_group = Adw.PreferencesGroup(title="应用")
         diag.add(quit_group)
         quit_row = Adw.ActionRow(title="退出", subtitle="停止监听并关闭悬浮窗")
-        quit_button = Gtk.Button()
+        quit_button = Gtk.Button.new_with_label("退出")
         quit_button.set_valign(Gtk.Align.CENTER)
         quit_button.add_css_class("destructive-action")
-        quit_button.set_child(_button_content("application-exit-symbolic", "退出"))
         quit_button.connect("clicked", lambda *_: self._on_quit())
         quit_row.add_suffix(quit_button)
         quit_row.set_activatable_widget(quit_button)
@@ -564,13 +516,16 @@ class ControlWindow:
         diag.add(report_group)
 
         report_buttons = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        refresh_button = Gtk.Button()
-        refresh_button.set_child(_button_content("view-refresh-symbolic", "刷新"))
+        # 组标题行会因为描述文字换行而变高,组里的按钮默认会被拉成一样高 ——
+        # 显式垂直居中,按钮保持默认高度。
+        report_buttons.set_valign(Gtk.Align.CENTER)
+        refresh_button = Gtk.Button.new_with_label("刷新")
+        refresh_button.set_valign(Gtk.Align.CENTER)
         refresh_button.set_tooltip_text("重新检查本机与各组件状态")
         refresh_button.connect("clicked", lambda *_: self._refresh_report())
         report_buttons.append(refresh_button)
-        copy_button = Gtk.Button()
-        copy_button.set_child(_button_content("edit-copy-symbolic", "复制"))
+        copy_button = Gtk.Button.new_with_label("复制")
+        copy_button.set_valign(Gtk.Align.CENTER)
         copy_button.set_tooltip_text("复制隐私安全的诊断报告到剪贴板")
         copy_button.connect("clicked", lambda *_: self._copy_report())
         report_buttons.append(copy_button)
@@ -582,21 +537,27 @@ class ControlWindow:
             actions.add_suffix(report_buttons)
             report_group.add(actions)
 
-        # 报告区:卡片里不再套一层边框(Adw 反模式),高度封顶后交给页面滚动,
-        # 避免出现「页面里套一个滚动区」的双层滚动。
+        # 报告区:一个圆角卡片(圆角 + 跟随深浅色主题的底色/边框),高度封顶后
+        # 交给页面滚动,避免「页面里套一个滚动区」的双层滚动。
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scrolled.set_propagate_natural_height(True)
         scrolled.set_max_content_height(320)
         scrolled.set_vexpand(False)
+        scrolled.add_css_class("report-card")
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(),
+            _report_card_css(),
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+        )
         self._report_view = Gtk.TextView()
         self._report_view.set_editable(False)
         self._report_view.set_cursor_visible(False)
         self._report_view.set_monospace(True)
-        self._report_view.set_left_margin(8)
-        self._report_view.set_right_margin(8)
-        self._report_view.set_top_margin(8)
-        self._report_view.set_bottom_margin(8)
+        self._report_view.set_left_margin(10)
+        self._report_view.set_right_margin(10)
+        self._report_view.set_top_margin(10)
+        self._report_view.set_bottom_margin(10)
         self._report_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
         scrolled.set_child(self._report_view)
         report_group.add(scrolled)
@@ -674,11 +635,6 @@ class ControlWindow:
         help.set_wrap(True)
         help.add_css_class("dim-label")
         help.set_markup(
-            "<b>使用方式</b>\n"
-            "1. 在任意输入框聚焦\n"
-            "2. 按住 <b>右 Ctrl</b> 说话\n"
-            "3. 松开右 Ctrl,识别结果自动粘贴到当前输入框\n"
-            "\n"
             "<b>注意</b>\n"
             "• 终端里需手动 Ctrl+Shift+V\n"
             f"• 凭证保存在 {get_params_path()}\n"
@@ -820,7 +776,6 @@ class ControlWindow:
         if ok:
             self._desktop_shortcut = accelerator
             self._refresh_shortcut_row()
-            self._refresh_usage()
             self.toast(f"快捷键已设为 {accelerator}")
         else:
             self.toast(f"快捷键设置失败:{error}")
@@ -832,17 +787,23 @@ class ControlWindow:
         if index < 0 or index >= len(TRIGGER_KEY_CHOICES):
             return
         value = TRIGGER_KEY_CHOICES[index][0]
+        # 外部(向导)同步过来的同值不再回调,免得反复重启 evdev 监听。
+        if value == self._trigger_key:
+            return
         self._trigger_key = value
         if self._on_trigger_key_changed is not None:
             self._on_trigger_key_changed(value)
-        self._refresh_usage()
 
     def _on_trigger_mode_selected(self, row, _param) -> None:
-        mode = "toggle" if row.get_selected() == 1 else "hold"
+        index = row.get_selected()
+        if index < 0 or index >= len(TRIGGER_MODE_CHOICES):
+            return
+        mode = TRIGGER_MODE_CHOICES[index][0]
+        if mode == self._trigger_mode:
+            return
         self._trigger_mode = mode
         if self._on_trigger_mode_changed is not None:
             self._on_trigger_mode_changed(mode)
-        self._refresh_usage()
 
     def _on_silence_changed(self, row, _param) -> None:
         seconds = int(row.get_value())
@@ -855,30 +816,6 @@ class ControlWindow:
         self._sounds = bool(active)
         if self._on_sounds_changed is not None:
             self._on_sounds_changed(bool(active))
-
-    def _trigger_line(self) -> str:
-        """当前配置下"怎么触发"的那一行(随快捷键/模式/登录态变化)。"""
-        if self._app_state.login_status != LoginStatus.LOGGED_IN:
-            return "先在「账号」页登录豆包"
-        if self._desktop_shortcut:
-            return f"按 {self._desktop_shortcut} 开始,再按一次结束"
-        label = dict(TRIGGER_KEY_CHOICES).get(self._trigger_key, self._trigger_key)
-        if self._trigger_mode == "toggle":
-            return f"按「{label}」开始,再按一次结束"
-        return f"按住「{label}」说话,松开即输入"
-
-    def _usage_text(self) -> str:
-        """「使用方式」组的描述文案 —— 跟着当前配置走,不写死。"""
-        return (
-            "1. 在任意输入框聚焦\n"
-            f"2. {GLib.markup_escape_text(self._trigger_line())}\n"
-            "3. 识别结果自动粘贴到当前输入框"
-        )
-
-    def _refresh_usage(self) -> None:
-        if getattr(self, "_usage_group", None) is None:
-            return
-        self._usage_group.set_description(self._usage_text())
 
     def _on_focus_loss_switch(self, row, *_args) -> None:
         active = row.get_active() if hasattr(row, "get_active") else False
@@ -952,16 +889,21 @@ class ControlWindow:
 
     def _on_status_changed(self, *_args) -> None:
         self._refresh_status()
-        self._refresh_usage()
 
     def _refresh_status(self) -> None:
         status = self._app_state.login_status
         if status == LoginStatus.LOGGED_IN:
-            text, icon = "已登录", "emblem-ok-symbolic"
+            # emblem-ok-symbolic 只有 Yaru 有,Adwaita 主题下会画成白块,
+            # 所以优先用 object-select-symbolic。
+            text, icon = "已登录", _icon_name(
+                "object-select-symbolic", "emblem-ok-symbolic"
+            )
         elif status == LoginStatus.NOT_LOGGED_IN:
             text, icon = "未登录 · 点击「登录豆包」完成一次登录", "dialog-warning-symbolic"
         else:
-            text, icon = "检测中…", "emblem-synchronizing-symbolic"
+            text, icon = "检测中…", _icon_name(
+                "content-loading-symbolic", "emblem-synchronizing-symbolic"
+            )
 
         if self._status_label is not None:  # 退化路径
             if status == LoginStatus.LOGGED_IN:
@@ -978,10 +920,15 @@ class ControlWindow:
             return
         _set_subtitle(self._account_row, text)
         if self._login_button is not None:
-            _set_button_content_label(
-                self._login_button_content,
-                "重新登录" if status == LoginStatus.LOGGED_IN else "登录豆包",
+            self._login_button.set_label(
+                "重新登录" if status == LoginStatus.LOGGED_IN else "登录豆包"
             )
+            # 强调色只留给「还没登录、需要用户去登录」的状态;
+            # 已登录后的「重新登录」是次要操作,不该再抢眼。
+            if status == LoginStatus.NOT_LOGGED_IN:
+                self._login_button.add_css_class("suggested-action")
+            else:
+                self._login_button.remove_css_class("suggested-action")
         self._account_icon.set_from_icon_name(icon)
 
         # 没登录时在窗口顶部挂一条可点的横幅(Adw.Banner),别让用户去猜。

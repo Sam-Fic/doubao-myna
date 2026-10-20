@@ -23,19 +23,19 @@ from typing import Any, Callable, Optional
 import gi
 
 gi.require_version("Gtk", "4.0")
-try:
-    gi.require_version("Adw", "1")
-    from gi.repository import Adw  # type: ignore
-
-    Adw.init()
-    _HAS_ADW = True
-except Exception:  # pragma: no cover
-    Adw = None  # type: ignore
-    _HAS_ADW = False
 
 from gi.repository import GLib, Gtk  # type: ignore
 
 from doubao_input.doubao.app_state import AppState, LoginStatus
+from doubao_input.doubao.config import TRIGGER_KEY_CHOICES, TRIGGER_MODE_CHOICES
+from doubao_input.ui.adw_compat import (
+    HAS_ADW as _HAS_ADW,
+    Adw,
+    set_shortcut_text as _set_shortcut_text,
+    set_subtitle as _set_subtitle,
+    shortcut_widget as _shortcut_widget,
+    window_title as _window_title,
+)
 from doubao_input.ui.shortcut_capture import start_capture
 
 logger = logging.getLogger(__name__)
@@ -52,70 +52,6 @@ def available() -> bool:
 BUILD_HINT = "bash scripts/build-myna-hud.sh"
 
 
-# ---- libadwaita 小工具 ----
-
-
-def _adw_has(name: str) -> bool:
-    return _HAS_ADW and hasattr(Adw, name)
-
-
-def _button_content(icon_name: str, label: str) -> Gtk.Widget:
-    """按钮内容:图标 + 文字(Adw.ButtonContent,libadwaita ≥ 1.6)。"""
-    if _adw_has("ButtonContent"):
-        content = Adw.ButtonContent()
-        content.set_icon_name(icon_name)
-        content.set_label(label)
-        return content
-    return Gtk.Label(label=label)
-
-
-def _set_button_content_label(content: Optional[Gtk.Widget], label: str) -> None:
-    if content is None:
-        return
-    if _adw_has("ButtonContent") and isinstance(content, Adw.ButtonContent):
-        content.set_label(label)
-    elif isinstance(content, Gtk.Label):
-        content.set_text(label)
-
-
-def _shortcut_widget(accelerator: str, empty_text: str = "未设置") -> Gtk.Widget:
-    """键帽展示(Adw.ShortcutLabel;老 libadwaita 回落到自带 .keycap 样式)。"""
-    if _adw_has("ShortcutLabel"):
-        widget = Adw.ShortcutLabel()
-        widget.set_accelerator(accelerator or "")
-        widget.set_disabled_text(empty_text)
-        return widget
-    label = Gtk.Label(label=accelerator or empty_text)
-    label.add_css_class("keycap")
-    return label
-
-
-def _set_shortcut_text(
-    widget: Optional[Gtk.Widget], accelerator: str, empty_text: str = "未设置"
-) -> None:
-    if widget is None:
-        return
-    if isinstance(widget, Gtk.Label):
-        widget.set_text(accelerator or empty_text)
-        return
-    try:
-        widget.set_accelerator(accelerator or "")
-        widget.set_disabled_text(empty_text)
-    except Exception:
-        pass
-
-
-def _set_subtitle(row: Any, text: str) -> None:
-    """写行的副标题(按纯文本处理,内部转义)。"""
-    if row is None:
-        return
-    try:
-        row.set_use_markup(True)
-    except Exception:
-        pass
-    row.set_subtitle(GLib.markup_escape_text(text))
-
-
 class OnboardingWindow:
     """4 步首次运行向导(Adw)。"""
 
@@ -126,6 +62,10 @@ class OnboardingWindow:
         on_shortcut_set: Callable[[str], tuple[bool, str]],
         on_shortcut_conflicts: Optional[Callable[[str], Any]] = None,
         desktop_shortcut: Optional[Callable[[], str]] = None,
+        trigger_key: str = "KEY_RIGHTCTRL",
+        trigger_mode: str = "hold",
+        on_trigger_key_set: Optional[Callable[[str], None]] = None,
+        on_trigger_mode_set: Optional[Callable[[str], None]] = None,
         hud_status: Optional[Callable[[], str]] = None,
         hud_enabled: bool = False,
         on_finish: Optional[Callable[[], None]] = None,
@@ -136,6 +76,10 @@ class OnboardingWindow:
         self._on_shortcut_set = on_shortcut_set
         self._on_shortcut_conflicts = on_shortcut_conflicts
         self._desktop_shortcut = desktop_shortcut or (lambda: "")
+        self._trigger_key = trigger_key
+        self._trigger_mode = "toggle" if trigger_mode == "toggle" else "hold"
+        self._on_trigger_key_set = on_trigger_key_set
+        self._on_trigger_mode_set = on_trigger_mode_set
         self._hud_status = hud_status or (lambda: "未启用")
         self._hud_enabled = hud_enabled
         self._on_finish = on_finish
@@ -143,13 +87,14 @@ class OnboardingWindow:
         self._stack: Optional[Gtk.Stack] = None
         self._back_button: Optional[Gtk.Button] = None
         self._next_button: Optional[Gtk.Button] = None
-        self._next_button_content: Optional[Gtk.Widget] = None
         self._shortcut_widget: Optional[Gtk.Widget] = None
         self._clear_button: Optional[Gtk.Button] = None
         self._login_row = None
         self._login_button: Optional[Gtk.Button] = None
-        self._login_button_content: Optional[Gtk.Widget] = None
         self._hud_status_row = None
+        self._trigger_key_row: Optional[Adw.ComboRow] = None
+        self._trigger_mode_row: Optional[Adw.ComboRow] = None
+        self._welcome_page = None
         self._toast_overlay = None
         self._parent = parent
 
@@ -170,10 +115,44 @@ class OnboardingWindow:
             _set_shortcut_text(self._shortcut_widget, self._desktop_shortcut() or "")
         if self._clear_button is not None:
             self._clear_button.set_sensitive(bool(self._desktop_shortcut()))
+        self._refresh_trigger_rows()
         self._refresh_login_row()
         if self._hud_status_row is not None:
             _set_subtitle(self._hud_status_row, self._hud_status())
         self._update_buttons()
+
+    def _refresh_trigger_rows(self) -> None:
+        """把物理键 / 触发方式两行同步成当前值(外部改了也能跟上)。"""
+        if self._trigger_key_row is not None:
+            for index, (value, _name) in enumerate(TRIGGER_KEY_CHOICES):
+                if value == self._trigger_key:
+                    self._trigger_key_row.set_selected(index)
+                    break
+        if self._trigger_mode_row is not None:
+            for index, (value, _name) in enumerate(TRIGGER_MODE_CHOICES):
+                if value == self._trigger_mode:
+                    self._trigger_mode_row.set_selected(index)
+                    break
+        self._refresh_welcome()
+
+    def _refresh_welcome(self) -> None:
+        """欢迎页文案跟着当前触发配置走(不再写死「按住右 Ctrl」)。"""
+        if self._welcome_page is None:
+            return
+        label = dict(TRIGGER_KEY_CHOICES).get(self._trigger_key, self._trigger_key)
+        if self._trigger_mode == "toggle":
+            first = (
+                f"在任意输入框聚焦，按一下 <b>{label}</b> 开始说话，"
+                "再按一下结束并粘贴进去。"
+            )
+        else:
+            first = (
+                f"在任意输入框聚焦，按住 <b>{label}</b> 说话，"
+                "松开就把识别结果粘贴进去。"
+            )
+        self._welcome_page.set_description(
+            first + "\n识别由豆包的网页服务完成；登录凭证只保存在本机，不会发给第三方。"
+        )
 
     # ---- internals ----
 
@@ -189,19 +168,28 @@ class OnboardingWindow:
         toolbar = Adw.ToolbarView()
 
         header = Adw.HeaderBar()
-        header.set_title("设置豆包语音输入法")
-        self._back_button = Gtk.Button()
-        self._back_button.add_css_class("flat")
-        self._back_button.set_child(_button_content("go-previous-symbolic", "上一步"))
-        self._back_button.connect("clicked", lambda *_: self._go(-1))
-        header.pack_start(self._back_button)
-        self._next_button = Gtk.Button()
-        self._next_button.add_css_class("suggested-action")
-        self._next_button_content = _button_content("go-next-symbolic", "下一步")
-        self._next_button.set_child(self._next_button_content)
-        self._next_button.connect("clicked", lambda *_: self._go(1))
-        header.pack_end(self._next_button)
+        header.set_title_widget(_window_title("设置豆包语音输入法"))
         toolbar.add_top_bar(header)
+
+        # 导航按钮放窗口底部:左边「上一步」,右边「下一步」。
+        nav = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        nav.set_margin_top(12)
+        nav.set_margin_bottom(12)
+        nav.set_margin_start(12)
+        nav.set_margin_end(12)
+        self._back_button = Gtk.Button.new_with_label("上一步")
+        self._back_button.set_hexpand(False)
+        self._back_button.connect("clicked", lambda *_: self._go(-1))
+        nav.append(self._back_button)
+        spacer = Gtk.Box()
+        spacer.set_hexpand(True)
+        nav.append(spacer)
+        self._next_button = Gtk.Button.new_with_label("下一步")
+        self._next_button.set_hexpand(False)
+        self._next_button.add_css_class("suggested-action")
+        self._next_button.connect("clicked", lambda *_: self._go(1))
+        nav.append(self._next_button)
+        toolbar.add_bottom_bar(nav)
 
         self._stack = Gtk.Stack()
         self._stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT)
@@ -229,10 +217,8 @@ class OnboardingWindow:
         page = Adw.StatusPage()
         page.set_icon_name(_ICON_NAME)
         page.set_title("欢迎使用豆包语音输入法")
-        page.set_description(
-            "在任意输入框聚焦，<b>按住右 Ctrl</b> 说话，松开就把识别结果粘贴进去。\n"
-            "识别由豆包的网页服务完成；登录凭证只保存在本机，不会发给第三方。"
-        )
+        self._welcome_page = page
+        self._refresh_welcome()
         return page
 
     def _build_login(self) -> Gtk.Widget:
@@ -245,11 +231,9 @@ class OnboardingWindow:
         page.add(group)
 
         self._login_row = Adw.ActionRow(title="登录状态", subtitle="检测中…")
-        self._login_button = Gtk.Button()
+        self._login_button = Gtk.Button.new_with_label("登录豆包")
         self._login_button.set_valign(Gtk.Align.CENTER)
         self._login_button.add_css_class("suggested-action")
-        self._login_button_content = _button_content("system-users-symbolic", "登录豆包")
-        self._login_button.set_child(self._login_button_content)
         self._login_button.connect("clicked", lambda *_: self._on_login())
         self._login_row.add_suffix(self._login_button)
         self._login_row.set_activatable_widget(self._login_button)
@@ -271,14 +255,12 @@ class OnboardingWindow:
         )
         self._shortcut_widget = _shortcut_widget(self._desktop_shortcut() or "")
         self._shortcut_widget.set_valign(Gtk.Align.CENTER)
-        button = Gtk.Button()
+        button = Gtk.Button.new_with_label("设置")
         button.set_valign(Gtk.Align.CENTER)
-        button.set_child(_button_content("preferences-desktop-keyboard-shortcuts-symbolic", "设置"))
         button.connect("clicked", lambda *_: self._capture())
-        self._clear_button = Gtk.Button()
+        self._clear_button = Gtk.Button.new_with_label("清除")
         self._clear_button.set_valign(Gtk.Align.CENTER)
         self._clear_button.add_css_class("flat")
-        self._clear_button.set_child(_button_content("edit-clear-all-symbolic", "清除"))
         self._clear_button.set_sensitive(bool(self._desktop_shortcut()))
         self._clear_button.connect("clicked", lambda *_: self._clear_shortcut())
         row.add_suffix(self._shortcut_widget)
@@ -287,18 +269,31 @@ class OnboardingWindow:
         row.set_activatable_widget(button)
         group.add(row)
 
-        group.add(
-            Adw.ActionRow(
-                title="物理键",
-                subtitle="默认右 Ctrl，可在设置窗口的「输入」页更换",
-            )
+        # 物理键(evdev):向导里直接能改,不用再跑一趟设置窗口
+        self._trigger_key_row = Adw.ComboRow(
+            title="物理键",
+            subtitle="直接监听 /dev/input/event*,不需要桌面配合",
         )
-        group.add(
-            Adw.ActionRow(
-                title="触发方式",
-                subtitle="默认按住说话；想要 Myna 的「按一下开始/再按一下结束」可在设置里切换",
-            )
+        self._trigger_key_row.set_model(
+            Gtk.StringList.new([name for _, name in TRIGGER_KEY_CHOICES])
         )
+        for index, (value, _name) in enumerate(TRIGGER_KEY_CHOICES):
+            if value == self._trigger_key:
+                self._trigger_key_row.set_selected(index)
+        self._trigger_key_row.connect("notify::selected", self._on_trigger_key_selected)
+        group.add(self._trigger_key_row)
+
+        # 触发方式:按住说话(豆包原生)/ 按一下开始-再按一下结束(Myna)
+        self._trigger_mode_row = Adw.ComboRow(title="触发方式")
+        self._trigger_mode_row.set_model(
+            Gtk.StringList.new([name for _, name in TRIGGER_MODE_CHOICES])
+        )
+        for index, (value, _name) in enumerate(TRIGGER_MODE_CHOICES):
+            if value == self._trigger_mode:
+                self._trigger_mode_row.set_selected(index)
+        self._trigger_mode_row.connect("notify::selected", self._on_trigger_mode_selected)
+        group.add(self._trigger_mode_row)
+
         return page
 
     def _build_hud(self) -> Gtk.Widget:
@@ -316,9 +311,8 @@ class OnboardingWindow:
             title="安装命令",
             subtitle="需要 cargo + libgtk-4-dev + libadwaita-1-dev",
         )
-        copy = Gtk.Button()
+        copy = Gtk.Button.new_with_label("复制")
         copy.set_valign(Gtk.Align.CENTER)
-        copy.set_child(_button_content("edit-copy-symbolic", "复制"))
         copy.connect("clicked", lambda *_: self._copy_command())
         install_row.add_suffix(copy)
         install_row.set_activatable_widget(copy)
@@ -357,7 +351,7 @@ class OnboardingWindow:
         current = pages.index(self._stack.get_visible_child_name())
         self._back_button.set_sensitive(current > 0)
         last = current == len(pages) - 1
-        _set_button_content_label(self._next_button_content, "完成" if last else "下一步")
+        self._next_button.set_label("完成" if last else "下一步")
         if pages[current] == "login":
             # 未登录不让过(Myna 的 Components 步同样要求就绪)
             self._next_button.set_sensitive(
@@ -372,13 +366,19 @@ class OnboardingWindow:
         status = self._app_state.login_status
         if status == LoginStatus.LOGGED_IN:
             _set_subtitle(self._login_row, "已登录")
-            _set_button_content_label(self._login_button_content, "重新登录")
+            self._login_button.set_label("重新登录")
         elif status == LoginStatus.NOT_LOGGED_IN:
             _set_subtitle(self._login_row, "未登录 · 请先完成一次登录")
-            _set_button_content_label(self._login_button_content, "登录豆包")
+            self._login_button.set_label("登录豆包")
         else:
             _set_subtitle(self._login_row, "检测中…")
-            _set_button_content_label(self._login_button_content, "登录豆包")
+            self._login_button.set_label("登录豆包")
+        # 强调色只留给「还没登录、需要用户去登录」的状态;
+        # 已登录后的「重新登录」是次要操作,不该再抢眼。
+        if status == LoginStatus.NOT_LOGGED_IN:
+            self._login_button.add_css_class("suggested-action")
+        else:
+            self._login_button.remove_css_class("suggested-action")
 
     def _finish(self) -> None:
         if self._on_finish is not None:
@@ -387,6 +387,34 @@ class OnboardingWindow:
             self._window.close()
 
     # ---- helpers ----
+
+    def _on_trigger_key_selected(self, row, _param) -> None:
+        index = row.get_selected()
+        if index < 0 or index >= len(TRIGGER_KEY_CHOICES):
+            return
+        value = TRIGGER_KEY_CHOICES[index][0]
+        if value == self._trigger_key:
+            return
+        self._trigger_key = value
+        if self._on_trigger_key_set is not None:
+            self._on_trigger_key_set(value)
+        self._refresh_welcome()
+        label = dict(TRIGGER_KEY_CHOICES)[value]
+        self._toast(f"物理键已设为 {label}")
+
+    def _on_trigger_mode_selected(self, row, _param) -> None:
+        index = row.get_selected()
+        if index < 0 or index >= len(TRIGGER_MODE_CHOICES):
+            return
+        value = TRIGGER_MODE_CHOICES[index][0]
+        if value == self._trigger_mode:
+            return
+        self._trigger_mode = value
+        if self._on_trigger_mode_set is not None:
+            self._on_trigger_mode_set(value)
+        self._refresh_welcome()
+        label = dict(TRIGGER_MODE_CHOICES)[value]
+        self._toast(f"触发方式: {label}")
 
     def _capture(self) -> None:
         start_capture(self._window, self._apply_shortcut)

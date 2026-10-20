@@ -7,8 +7,8 @@
   * **裸字母一律忽略** —— 否则会把打字键抢走。
 
 界面走 libadwaita 的默认样式:Adw.Window + ToolbarView + HeaderBar,
-内容用 Adw.StatusPage(大图标 + 提示 + 说明),「取消」按钮放标题栏。
-没有 libadwaita 的老系统上退回纯 GTK4 窗口。
+内容用 Adw.StatusPage(大图标 + 提示 + 说明)。取消靠标题栏右上角的 X 或 Esc。
+没有 libadwaita 的老系统上退回纯 GTK4 窗口(那边没有 X,保留「取消」按钮)。
 """
 
 from __future__ import annotations
@@ -18,17 +18,14 @@ from typing import Callable, Optional
 import gi
 
 gi.require_version("Gtk", "4.0")
-try:
-    gi.require_version("Adw", "1")
-    from gi.repository import Adw  # type: ignore
-
-    Adw.init()
-    _HAS_ADW = True
-except Exception:  # pragma: no cover
-    Adw = None  # type: ignore
-    _HAS_ADW = False
 
 from gi.repository import Gdk, Gtk  # type: ignore
+
+from doubao_input.ui.adw_compat import (
+    HAS_ADW as _HAS_ADW,
+    Adw,
+    window_title as _window_title,
+)
 
 PROMPT = "按下新的快捷键…"
 HINT = "用 Ctrl / Alt / Super 加上另一个键，或单独的功能键。Esc 取消。"
@@ -69,10 +66,8 @@ def _adw_window(
     toolbar = Adw.ToolbarView()
 
     header = Adw.HeaderBar()
-    header.set_title("设置快捷键")
-    cancel = Gtk.Button(label="取消")
-    cancel.connect("clicked", lambda *_: win.close())
-    header.pack_end(cancel)
+    header.set_title_widget(_window_title("设置快捷键"))
+    # 右上角本来就有 X(关闭),不再放「取消」按钮;Esc 也能取消。
     toolbar.add_top_bar(header)
 
     page = Adw.StatusPage()

@@ -74,21 +74,21 @@ logger = logging.getLogger(__name__)
 
 def _app_version() -> str:
     """应用版本(装过的包读 metadata,源码运行时退回 pyproject 里的版本号)。"""
-    try:
-        from importlib.metadata import version
+    from doubao_input.ui.about import app_version
 
-        return version("doubao-input")
-    except Exception:
-        return "1.1.0"
+    return app_version()
 
 
 class DoubaoInputApp(Gtk.Application):
     def __init__(self) -> None:
         super().__init__(
             application_id="com.doubao.Input",
+            # 单实例(不带 NON_UNIQUE):第二次启动会通过 D-Bus 把命令行
+            # 转给已有实例,于是 .desktop 的 show-control action 只是把
+            # 现有窗口叫出来,而不是再开一个。
             # HANDLES_COMMAND_LINE:让 `--verbose` / `--quiet` / `--show` 真正生效
             # (.desktop 的 show-control action 以前是死参数)。
-            flags=Gio_APPLICATION_NON_UNIQUE() | Gio.ApplicationFlags.HANDLES_COMMAND_LINE,
+            flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE,
         )
         # PyGObject does NOT dispatch do_activate() automatically in all
         # versions — connect the signal explicitly so the first run
@@ -127,33 +127,43 @@ class DoubaoInputApp(Gtk.Application):
     # ---- Gtk.Application hooks (signal handlers, not do_*) ----
 
     def do_command_line(self, command_line) -> int:
-        """命令行开关:-v/--verbose、--quiet、--show、--log-file <路径>。"""
-        level = logging.INFO
-        show = False
-        log_file = None
-        arguments = command_line.get_arguments()[1:]
-        index = 0
-        while index < len(arguments):
-            argument = arguments[index]
-            if argument in ("--verbose", "-v"):
-                level = logging.DEBUG
-            elif argument == "--quiet":
-                level = logging.WARNING
-            elif argument == "--show":
-                show = True
-            elif argument == "--log-file" and index + 1 < len(arguments):
+        """命令行开关:-v/--verbose、--quiet、--show、--log-file <路径>。
+
+        整个流程包在 try 里:单实例应用里,第二实例是把命令行**转发**给
+        主实例的,主实例这边一旦抛异常不回话,转发方就会一直干等 ——
+        表现就是「再跑一次 ./start.sh 一点反应都没有」。所以宁可返回
+        非 0,也不能让它挂住。
+        """
+        try:
+            level = logging.INFO
+            show = False
+            log_file = None
+            arguments = command_line.get_arguments()[1:]
+            index = 0
+            while index < len(arguments):
+                argument = arguments[index]
+                if argument in ("--verbose", "-v"):
+                    level = logging.DEBUG
+                elif argument == "--quiet":
+                    level = logging.WARNING
+                elif argument == "--show":
+                    show = True
+                elif argument == "--log-file" and index + 1 < len(arguments):
+                    index += 1
+                    log_file = arguments[index]
+                else:
+                    logger.info("ignoring unknown argument: %s", argument)
                 index += 1
-                log_file = arguments[index]
-            else:
-                logger.info("ignoring unknown argument: %s", argument)
-            index += 1
-        logging.getLogger().setLevel(level)
-        logger.debug("command line level set to %s", logging.getLevelName(level))
-        if log_file:
-            self._attach_file_log(log_file)
-        self.activate()
-        if show and self._control is not None:
-            self._control.show()
+            logging.getLogger().setLevel(level)
+            logger.debug("command line level set to %s", logging.getLevelName(level))
+            if log_file:
+                self._attach_file_log(log_file)
+            self.activate()
+            if show and self._control is not None:
+                self._control.show()
+        except Exception:
+            logger.exception("命令行处理失败")
+            return 1
         return 0
 
     @staticmethod
@@ -207,28 +217,11 @@ class DoubaoInputApp(Gtk.Application):
         return GLib.SOURCE_REMOVE
 
     def _show_about(self) -> None:
-        """关于窗口(Myna Settings 的主菜单同款)。"""
-        if not adw_available():
-            return
-        from gi.repository import Adw  # type: ignore
+        """关于对话框(Adw.AboutDialog;实现见 ui/about.py)。"""
+        from doubao_input.ui.about import show_about
 
-        about = Adw.AboutWindow()
-        about.set_transient_for(self._control._window if self._control else None)
-        about.set_application_name("豆包语音输入法")
-        about.set_application_icon("doubao-input")
-        about.set_version(_app_version())
-        about.set_developer_name("Sam-Fic")
-        about.set_license_type(Gtk.License.AGPL_3)
-        about.set_comments(
-            "按住右 Ctrl 说话,松开自动粘贴。识别走豆包网页 ASR,界面用 Myna 那套。"
-        )
-        about.set_website("https://github.com/Sam-Fic/doubao-myna")
-        about.set_issue_url("https://github.com/Sam-Fic/doubao-myna/issues")
-        about.add_credit_section("致谢", ["Myna (Canonical) — 界面 / 图标 / myna-hud", "doubao-murmur — 豆包逆向逻辑", "wurong98/doubao-input-for-linux — 上游"])
-        try:
-            about.present()
-        except Exception as e:
-            logger.warning("about window failed: %s", e)
+        parent = self._control._window if self._control else None
+        show_about(self, parent, version=_app_version())
 
     def show_onboarding(self) -> None:
         """打开首次运行向导(设置窗口主菜单也能再开)。"""
@@ -242,6 +235,10 @@ class DoubaoInputApp(Gtk.Application):
                 on_shortcut_set=self.set_desktop_shortcut,
                 on_shortcut_conflicts=self.desktop_shortcut_conflicts,
                 desktop_shortcut=self.desktop_shortcut,
+                trigger_key=self._trigger_key,
+                trigger_mode=self._trigger_mode,
+                on_trigger_key_set=self.set_trigger_key,
+                on_trigger_mode_set=self.set_trigger_mode,
                 hud_status=self._hud_status,
                 hud_enabled=self._use_hud,
                 on_finish=lambda: save_onboarding_done(True),
@@ -347,12 +344,23 @@ class DoubaoInputApp(Gtk.Application):
         save_trigger_key(key_name)
         self._trigger_key = key_name
         self._restart_ptt()
+        self._sync_trigger_ui()
 
     def set_trigger_mode(self, mode: str) -> None:
         """hold = 按住说话(豆包原生);toggle = 按一下开/再按一下停(Myna)。"""
         self._trigger_mode = "toggle" if mode == "toggle" else "hold"
         save_trigger_mode(self._trigger_mode)
         logger.info("trigger mode: %s", self._trigger_mode)
+        self._sync_trigger_ui()
+
+    def _sync_trigger_ui(self) -> None:
+        """设置窗口开着的话,把触发键 / 触发方式那两行同步过来。"""
+        if self._control is None:
+            return
+        try:
+            self._control.refresh_trigger_settings(self._trigger_key, self._trigger_mode)
+        except Exception as e:
+            logger.debug("sync trigger ui failed: %s", e)
 
     def set_silence_timeout(self, seconds: int) -> None:
         """静音多少秒自动结束;0 = 不自动结束(对齐 Myna 的 silence-timeout)。"""
@@ -893,8 +901,3 @@ class DoubaoInputApp(Gtk.Application):
         if self._injector:
             self._injector.close()
         self.quit()
-
-
-def Gio_APPLICATION_NON_UNIQUE():
-    from gi.repository import Gio  # type: ignore
-    return Gio.ApplicationFlags.FLAGS_NONE
