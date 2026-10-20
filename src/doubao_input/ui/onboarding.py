@@ -34,6 +34,7 @@ from doubao_input.ui.adw_compat import (
     set_shortcut_text as _set_shortcut_text,
     set_subtitle as _set_subtitle,
     shortcut_widget as _shortcut_widget,
+    accelerator_label as _accelerator_label,
     window_title as _window_title,
 )
 from doubao_input.ui.shortcut_capture import start_capture
@@ -111,10 +112,7 @@ class OnboardingWindow:
 
     def refresh(self) -> None:
         """登录态 / 胶囊状态变化后刷新当前页。"""
-        if self._shortcut_widget is not None:
-            _set_shortcut_text(self._shortcut_widget, self._desktop_shortcut() or "")
-        if self._clear_button is not None:
-            self._clear_button.set_sensitive(bool(self._desktop_shortcut()))
+        self._refresh_shortcut_row()
         self._refresh_trigger_rows()
         self._refresh_login_row()
         if self._hud_status_row is not None:
@@ -253,6 +251,7 @@ class OnboardingWindow:
             title="桌面快捷键",
             subtitle="写进桌面的自定义快捷键，命令是 D-Bus Toggle",
         )
+        self._shortcut_row = row
         self._shortcut_widget = _shortcut_widget(self._desktop_shortcut() or "")
         self._shortcut_widget.set_valign(Gtk.Align.CENTER)
         button = Gtk.Button.new_with_label("设置")
@@ -433,9 +432,7 @@ class OnboardingWindow:
                 return
         ok, error = self._on_shortcut_set(accelerator)
         if ok:
-            _set_shortcut_text(self._shortcut_widget, self._desktop_shortcut() or accelerator)
-            if self._clear_button is not None:
-                self._clear_button.set_sensitive(True)
+            self._refresh_shortcut_row()
             self._toast(f"快捷键已设为 {accelerator}")
         else:
             self._toast(f"设置失败: {error}")
@@ -445,12 +442,23 @@ class OnboardingWindow:
             return
         ok, error = self._on_shortcut_set("")
         if ok:
-            _set_shortcut_text(self._shortcut_widget, "")
-            if self._clear_button is not None:
-                self._clear_button.set_sensitive(False)
+            self._refresh_shortcut_row()
             self._toast("已清除桌面快捷键")
         else:
             self._toast(f"清除失败: {error}")
+
+    def _refresh_shortcut_row(self) -> None:
+        """快捷键(或「未设置」)写进副标题,键帽不再单独显示。"""
+        binding = self._desktop_shortcut() or ""
+        if self._shortcut_widget is not None:
+            _set_shortcut_text(self._shortcut_widget, binding)
+            self._shortcut_widget.set_visible(False)
+        if self._clear_button is not None:
+            self._clear_button.set_sensitive(bool(binding))
+        if self._shortcut_row is not None:
+            base = "写进桌面的自定义快捷键，命令是 D-Bus Toggle"
+            head = _accelerator_label(binding) if binding else "未设置"
+            _set_subtitle(self._shortcut_row, f"{head} · {base}")
 
     def _copy_command(self) -> None:
         try:

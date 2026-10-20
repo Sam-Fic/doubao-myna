@@ -42,14 +42,15 @@ from doubao_input.doubao.config import (
     TRIGGER_MODE_CHOICES,
     get_params_path,
 )
+from doubao_input.i18n import _
 from doubao_input.ui.adw_compat import (
     HAS_ADW as _HAS_ADW,
     Adw,
     copy_text as _copy_text,
     icon_name as _icon_name,
-    set_shortcut_text as _set_shortcut_text,
     set_subtitle as _set_subtitle,
     shortcut_widget as _shortcut_widget,
+    accelerator_label as _accelerator_label,
 )
 from doubao_input.ui.shortcut_capture import start_capture
 
@@ -677,10 +678,13 @@ class ControlWindow:
             self._on_inject_shift_toggle(active)
 
     def _build_menu(self, win: Gtk.Window) -> Gtk.MenuButton:
-        """主菜单:Gio.Menu + Gtk.MenuButton(Adw 风格,自带键盘导航与高亮)。"""
+        """主菜单:Gio.Menu + Gtk.MenuButton(Adw 风格,自带键盘导航与高亮)。
+
+        文案走 i18n(源码英文,中文由 locale/*.po 提供)。
+        """
         button = Gtk.MenuButton()
         button.set_icon_name("open-menu-symbolic")
-        button.set_tooltip_text("主菜单")
+        button.set_tooltip_text(_("Main Menu"))
 
         if self._on_run_onboarding is not None:
             action = Gio.SimpleAction.new("onboarding", None)
@@ -694,9 +698,9 @@ class ControlWindow:
         menu = Gio.Menu()
         section = Gio.Menu()
         if self._on_run_onboarding is not None:
-            section.append("运行设置向导…", "win.onboarding")
+            section.append(_("Run Setup Wizard…"), "win.onboarding")
         if self._on_about is not None:
-            section.append("关于豆包语音输入法", "win.about")
+            section.append(_("About %s") % _("Doubao Voice Input"), "win.about")
         menu.append_section(None, section)
         button.set_menu_model(menu)
         return button
@@ -715,7 +719,8 @@ class ControlWindow:
         if self._shortcut_widget is None or self._shortcut_button is None:
             return
         binding = self._desktop_shortcut
-        _set_shortcut_text(self._shortcut_widget, binding)
+        # 快捷键(或「未设置」)直接写进副标题,键帽不再单独显示。
+        self._shortcut_widget.set_visible(False)
         self._shortcut_button.set_label("更改" if binding else "设置")
         if not self._desktop_shortcut_supported:
             _set_subtitle(
@@ -723,6 +728,10 @@ class ControlWindow:
                 "当前桌面不支持写入自定义快捷键(需要 GNOME 或 Xfce)",
             )
             self._shortcut_button.set_sensitive(False)
+        else:
+            base = "写进桌面的自定义快捷键,命令是 D-Bus Toggle"
+            head = _accelerator_label(binding) if binding else "未设置"
+            _set_subtitle(self._shortcut_row, f"{head} · {base}")
 
     def _copy_creds_path(self) -> None:
         if _copy_text(str(get_params_path())):

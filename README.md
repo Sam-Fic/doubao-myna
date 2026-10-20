@@ -29,6 +29,7 @@
 - **中文输入优化**：采用剪贴板写入配合模拟 Ctrl+V 粘贴机制，避免逐键输入导致的延迟。
 - **悬浮状态窗**：默认集成 Myna 的 `myna-hud`（libadwaita + GPU 波形渲染）。若未安装，自动降级为内置胶囊窗口（18px 圆角、呼吸透明度、流光闪烁动效，纯白粗体文本确保可读性）。
 - **现代化设置界面**：基于 libadwaita 构建三页 PreferencesWindow（账号 / 输入 / 诊断），采用标准组件库。
+- **多语言界面**：源码语言为英文，简体 / 繁体中文通过 gettext 翻译文件（`locale/zh_CN`、`locale/zh_TW`）补充；目前主菜单（汉堡菜单）已接入，其余文案将逐步迁移。
 - **后台常驻运行**：通过 `systemd --user` 实现开机自启，支持单实例运行及窗口唤起。
 - **凭证本地持久化**：登录状态及凭证文件存储于 `~/.config/doubao-input/asr_params.json`，支持跨会话复用。
 - **免 Root 运行**：仅需将当前用户加入 `input` 用户组（`.deb` 安装脚本自动处理）。
@@ -346,7 +347,7 @@ systemctl --user enable --now doubao-input.service
 
 ## 致谢
 ### 上游项目
-- **[Myna](https://github.com/canonical/myna)** (AGPL-3.0-or-later)：应用图标、`myna-hud` 渲染器、GNOME Shell 扩展与设置窗口风格均来自这里；本项目通过本地编译与 D-Bus 属性集成，未链接其代码。
+- **[Myna](https://github.com/canonical/myna)** (AGPL-3.0-or-later，**© 2025-2026 Canonical Ltd.**，Myna 自己的 About 只署 Canonical)：应用图标、`myna-hud` 渲染器、GNOME Shell 扩展与设置窗口风格均来自这里；本项目通过本地编译与 D-Bus 属性集成，未链接其代码。
 - **[doubao-murmur](https://github.com/yourname/doubao-murmur)** (MIT)：豆包逆向逻辑（登录、WebSocket ASR、音频采集）的来源。仓库地址未公开（NOTICE 中为占位符），欢迎知情者补充。
 - **[wurong98/doubao-input-for-linux](https://github.com/wurong98/doubao-input-for-linux)** (MIT)：上游项目，提供 Push-to-Hold 交互、evdev 触发、剪贴板 + uinput 注入及 WebKit 登录窗口。
 - **豆包 (Doubao)**：底层 Web 版流式 ASR 服务（本项目为非官方逆向实现，与字节跳动无关联）。
@@ -355,7 +356,7 @@ systemctl --user enable --now doubao-input.service
 | 项目 | 贡献者 |
 |---|---|
 | 本 fork（Sam-Fic/doubao-myna） | Sam-Fic、wurong98（上游历史） |
-| [canonical/myna](https://github.com/canonical/myna) | quine00、3v1n0、jibel、weblate、juanruitina、Matthaiks、paul-geoghegan、IhorHordiichuk、ogres、mz2、github-actions[bot]、Copilot、dependabot[bot] |
+| [canonical/myna](https://github.com/canonical/myna) | **Canonical Ltd.**（© 2025-2026，Myna 的 About 只署 Canonical）、quine00、3v1n0、jibel、weblate、juanruitina、Matthaiks、paul-geoghegan、IhorHordiichuk、ogres、mz2、github-actions[bot]、Copilot、dependabot[bot] |
 | [wurong98/doubao-input-for-linux](https://github.com/wurong98/doubao-input-for-linux) | wurong98 |
 | doubao-murmur | 上游未公开，暂缺 |
 

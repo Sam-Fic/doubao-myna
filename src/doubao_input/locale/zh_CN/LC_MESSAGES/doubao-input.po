@@ -1,0 +1,31 @@
+# Chinese (Simplified) translation for doubao-input.
+# Copyright (C) 2026 doubao-input contributors
+# This file is distributed under the same license as the doubao-input package
+# (AGPL-3.0-or-later).
+#
+# 源码语言是英文,这里提供简体中文翻译。
+# 新增界面字符串时:在代码里用 _("...") 包起来,然后在这里补一行 msgstr。
+
+msgid ""
+msgstr ""
+"Project-Id-Version: doubao-input 1.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-10-21 00:00+0000\n"
+"PO-Revision-Date: 2026-10-21 00:00+0000\n"
+"Language: zh_CN\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "Main Menu"
+msgstr "主菜单"
+
+msgid "Run Setup Wizard…"
+msgstr "运行设置向导…"
+
+msgid "Doubao Voice Input"
+msgstr "豆包语音输入法"
+
+msgid "About %s"
+msgstr "关于%s"

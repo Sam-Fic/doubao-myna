@@ -41,6 +41,14 @@ COPYRIGHT = "© 2026 Sam-Fic · © 2026 doubao-input-for-linux contributors"
 
 WEBSITE = "https://github.com/Sam-Fic/doubao-myna"
 
+#: Myna 自己的 About 页面(myna-config/src/app.rs 的 present_about)只署这些:
+#:   application_name "Myna Settings" / developer_name "Canonical"
+#:   copyright "© 2025-2026 Canonical Ltd." / license AGPL-3.0
+#:   website https://github.com/canonical/myna
+#: 界面、图标、myna-hud、GNOME 扩展都出自那里,这里原样继承这份署名。
+MYNA_COPYRIGHT = "© 2025-2026 Canonical Ltd."
+MYNA_WEBSITE = "https://github.com/canonical/myna"
+
 #: 贡献者名单快照日期 —— 下面几节是当天从各仓库 GitHub contributors API 拉的。
 #: 人不多,就手写在代码里(不想为了几行字去发网络请求);换新血时改这里即可。
 CONTRIBUTORS_SNAPSHOT = "2026-10-21"
@@ -53,7 +61,8 @@ DEVELOPERS = [
 
 #: 鸣谢页:图标与界面出自谁手。
 ARTISTS = [
-    "Myna(Canonical)— 应用图标、myna-hud 悬浮胶囊、GNOME 扩展与设置窗口风格",
+    f"Myna — Canonical Ltd.({MYNA_COPYRIGHT}):应用图标 com.canonical.Myna.svg、"
+    "myna-hud 悬浮胶囊、GNOME Shell 扩展与设置窗口风格",
 ]
 
 #: 主页面上的「支持问题 / 报告问题」两个入口。
@@ -70,6 +79,8 @@ LINKS = [
     ("更新日志", f"{WEBSITE}#更新日志"),
     ("设计文档", f"{WEBSITE}/blob/main/docs/design.md"),
     ("与 Myna 的对齐说明", f"{WEBSITE}/blob/main/docs/myna-parity.md"),
+    ("上游:Myna", MYNA_WEBSITE),
+    ("上游:doubao-input-for-linux", "https://github.com/wurong98/doubao-input-for-linux"),
 ]
 
 #: Credits 页:本项目直接借鉴 / 依赖的上游项目与其贡献者。
@@ -84,8 +95,9 @@ CREDIT_SECTIONS = [
         ],
     ),
     (
-        f"Myna 贡献者(canonical/myna · AGPL-3.0-or-later · {CONTRIBUTORS_SNAPSHOT} 快照)",
+        f"Myna(canonical/myna · AGPL-3.0-or-later · {CONTRIBUTORS_SNAPSHOT} 快照)",
         [
+            f"Canonical Ltd. — {MYNA_COPYRIGHT}(Myna 自己的 About 只署 Canonical)",
             "quine00", "3v1n0", "jibel", "weblate", "juanruitina",
             "Matthaiks", "paul-geoghegan", "IhorHordiichuk", "ogres",
             "mz2", "github-actions[bot]", "Copilot", "dependabot[bot]",
@@ -143,7 +155,7 @@ LEGAL_SECTIONS = [
     ),
     (
         "Myna(应用图标 / myna-hud / GNOME 扩展 / 设置窗口风格)",
-        "© Canonical Ltd — 按 AGPL-3.0-or-later 使用,详见仓库 NOTICE",
+        f"{MYNA_COPYRIGHT} — AGPL-3.0-or-later,详见仓库 NOTICE",
         "AGPL_3_0",
         None,
     ),

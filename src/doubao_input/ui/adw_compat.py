@@ -50,6 +50,16 @@ def shortcut_widget(accelerator: str, empty_text: str = "未设置") -> Gtk.Widg
     return label
 
 
+def accelerator_label(accelerator: str) -> str:
+    """把 GTK accelerator 字符串(<Super>j)转成人类可读标签(Super+J 之类)。"""
+    if not accelerator:
+        return ""
+    keyval, mods = Gtk.accelerator_parse(accelerator)
+    if keyval == 0 and not mods:
+        return accelerator
+    return Gtk.accelerator_get_label(keyval, mods)
+
+
 def set_shortcut_text(
     widget: Optional[Gtk.Widget], accelerator: str, empty_text: str = "未设置"
 ) -> None:
