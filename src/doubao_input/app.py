@@ -30,6 +30,7 @@ from doubao_input.doubao.config import (
     FOCUS_POLL_SECS,
     PASTE_DELAY,
     SILENCE_RMS_THRESHOLD,
+    TRIGGER_KEY_CHOICES,
 )
 from doubao_input.doubao.params_store import ParamsStore
 from doubao_input.doubao.transcription import TranscriptionManager
@@ -69,6 +70,16 @@ from doubao_input.ui.overlay import Overlay
 from doubao_input.ui.sounds import Sounds
 
 logger = logging.getLogger(__name__)
+
+
+def _app_version() -> str:
+    """应用版本(装过的包读 metadata,源码运行时退回 pyproject 里的版本号)。"""
+    try:
+        from importlib.metadata import version
+
+        return version("doubao-input")
+    except Exception:
+        return "1.1.0"
 
 
 class DoubaoInputApp(Gtk.Application):
@@ -173,6 +184,22 @@ class DoubaoInputApp(Gtk.Application):
         if not load_onboarding_done():
             GLib.timeout_add(600, self._maybe_show_onboarding)
 
+    def _startup_hint(self) -> str:
+        """启动时那一闪的文案 —— 按**当前**的登录态和按键配置来说话。
+
+        以前写死"按住右 Ctrl",用户改了键或已经登录之后就文不对题。
+        """
+        if self.app_state.login_status != LoginStatus.LOGGED_IN:
+            return "豆包输入法已启动 · 请先在控制窗口登录豆包"
+        shortcut = self.desktop_shortcut()
+        if shortcut:
+            # 桌面快捷键走 D-Bus Toggle,语义就是"按一下开始/再按一下结束"。
+            return f"已就绪 · 按 {shortcut} 开始,再按一次结束"
+        label = dict(TRIGGER_KEY_CHOICES).get(self._trigger_key, self._trigger_key)
+        if self._trigger_mode == "toggle":
+            return f"已就绪 · 按「{label}」开始,再按一次结束"
+        return f"已就绪 · 按住「{label}」说话,松开即输入"
+
     def _maybe_show_onboarding(self) -> bool:
         if load_onboarding_done():
             return GLib.SOURCE_REMOVE
@@ -188,9 +215,10 @@ class DoubaoInputApp(Gtk.Application):
         about = Adw.AboutWindow()
         about.set_transient_for(self._control._window if self._control else None)
         about.set_application_name("豆包语音输入法")
-        about.set_version("Myna 界面版")
+        about.set_application_icon("doubao-input")
+        about.set_version(_app_version())
         about.set_developer_name("Sam-Fic")
-        about.set_license_type(__import__("gi.repository.Gtk", fromlist=["Gtk"]).License.AGPL_3)
+        about.set_license_type(Gtk.License.AGPL_3)
         about.set_comments(
             "按住右 Ctrl 说话,松开自动粘贴。识别走豆包网页 ASR,界面用 Myna 那套。"
         )
@@ -223,7 +251,7 @@ class DoubaoInputApp(Gtk.Application):
         self._onboarding.refresh()
 
     def _boot_flash_overlay(self) -> bool:
-        message = "豆包输入法已启动 · 请登录或按住右 Ctrl 说话"
+        message = self._startup_hint()
         if self._use_hud and self._hud is not None:
             self._hud.flash(NOTICE, message, 3000)
             return False

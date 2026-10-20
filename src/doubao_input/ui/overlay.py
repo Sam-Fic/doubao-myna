@@ -167,10 +167,13 @@ class Overlay:
         win = Gtk.Window()
         win.set_title("doubao-input overlay")
         win.set_decorated(False)
-        win.set_resizable(True)
+        # 胶囊大小是固定的:允许拉伸会被拖成奇怪的形状。
+        win.set_resizable(False)
         win.set_default_size(OVERLAY_WIDTH, OVERLAY_HEIGHT)
         win.set_focus_on_click(False)
+        # 绝不能抢焦点:否则注入的 Ctrl+V 会落到胶囊上而不是用户的输入框。
         win.set_can_focus(False)
+        win.set_focusable(False)
 
         # Center horizontally, near the top.
         try:
@@ -264,7 +267,8 @@ class Overlay:
         label.set_yalign(0.5)
         label.set_justify(Gtk.Justification.CENTER)
         label.set_wrap(True)
-        label.set_wrap_mode(0)
+        # WORD_CHAR:中文没有空格,按词换行会在句子中间断开。
+        label.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
         label.set_size_request(360, -1)
         label.set_width_chars(14)
         label.set_lines(2)

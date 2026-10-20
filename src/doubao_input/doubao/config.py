@@ -110,6 +110,22 @@ SOUNDS_ENABLED = True
 # 会话中按 ESC 取消(丢弃本次内容)。空串 = 不接取消键。
 CANCEL_KEY_NAME = "KEY_ESC"
 
+# 物理键(evdev 键名 → 显示名)。设置窗口的下拉和启动提示都用这张表。
+TRIGGER_KEY_CHOICES = [
+    ("KEY_RIGHTCTRL", "右 Ctrl"),
+    ("KEY_LEFTCTRL", "左 Ctrl"),
+    ("KEY_RIGHTALT", "右 Alt"),
+    ("KEY_LEFTALT", "左 Alt"),
+    ("KEY_RIGHTSHIFT", "右 Shift"),
+    ("KEY_LEFTMETA", "左 Super"),
+    ("KEY_RIGHTMETA", "右 Super"),
+    ("KEY_SCROLLLOCK", "Scroll Lock"),
+    ("KEY_PAUSE", "Pause"),
+    ("KEY_F12", "F12"),
+    ("KEY_F13", "F13"),
+    ("KEY_COMPOSE", "Menu"),
+]
+
 # 焦点离开目标窗口就结束本次听写(Myna 的行为)。探测是 best-effort:
 # Wayland 下第三方进程读不到别的窗口的焦点,那时这个开关不生效(见 ui/focus_watch.py)。
 STOP_ON_FOCUS_LOSS = False

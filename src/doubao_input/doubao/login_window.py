@@ -121,7 +121,10 @@ class LoginWindow:
 
         # Create window
         self._window = Gtk.Window()
-        self._window.set_title("Doubao Murmur - 登录")
+        # 上游原本写的是 "Doubao Murmur - 登录";这里换成本应用的名字,
+        # 免得登录窗口里露出上游项目的品牌。
+        self._window.set_title("登录豆包")
+        self._window.set_icon_name("doubao-input")
         self._window.set_default_size(1280, 800)
         self._window.set_child(self._webview)
         self._window.connect("close-request", self._on_close_request)

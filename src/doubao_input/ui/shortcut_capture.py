@@ -5,6 +5,10 @@
   * **Escape**(不带修饰键)= 取消,什么都不改;
   * 只有 **Ctrl/Alt/Super + 另一个键**,或单独的 **F1–F35 / XF86 媒体键** 才被采纳;
   * **裸字母一律忽略** —— 否则会把打字键抢走。
+
+界面走 libadwaita 的默认样式:Adw.Window + ToolbarView + HeaderBar,
+内容用 Adw.StatusPage(大图标 + 提示 + 说明),「取消」按钮放标题栏。
+没有 libadwaita 的老系统上退回纯 GTK4 窗口。
 """
 
 from __future__ import annotations
@@ -14,10 +18,20 @@ from typing import Callable, Optional
 import gi
 
 gi.require_version("Gtk", "4.0")
+try:
+    gi.require_version("Adw", "1")
+    from gi.repository import Adw  # type: ignore
+
+    Adw.init()
+    _HAS_ADW = True
+except Exception:  # pragma: no cover
+    Adw = None  # type: ignore
+    _HAS_ADW = False
+
 from gi.repository import Gdk, Gtk  # type: ignore
 
 PROMPT = "按下新的快捷键…"
-HINT = "用 Ctrl / Alt / Super 加上另一个键,或单独的功能键。Esc 取消。"
+HINT = "用 Ctrl / Alt / Super 加上另一个键，或单独的功能键。Esc 取消。"
 
 
 def start_capture(
@@ -27,6 +41,56 @@ def start_capture(
     hint: str = HINT,
 ) -> None:
     """弹一个模态小窗等用户按键;`on_result(accelerator)` 或什么都不调(取消)。"""
+    if _HAS_ADW:
+        win = _adw_window(parent, prompt, hint, on_result)
+    else:
+        win = _gtk_window(parent, prompt, hint, on_result)
+
+    controller = Gtk.EventControllerKey()
+    controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+    controller.connect("key-pressed", _on_key, win, on_result)
+    win.add_controller(controller)
+    win.present()
+
+
+def _adw_window(
+    parent: Optional[Gtk.Window],
+    prompt: str,
+    hint: str,
+    on_result: Callable[[str], None],
+) -> Gtk.Window:
+    win = Adw.Window()
+    if parent is not None:
+        win.set_transient_for(parent)
+    win.set_modal(True)
+    win.set_title("设置快捷键")
+    win.set_default_size(420, 320)
+
+    toolbar = Adw.ToolbarView()
+
+    header = Adw.HeaderBar()
+    header.set_title("设置快捷键")
+    cancel = Gtk.Button(label="取消")
+    cancel.connect("clicked", lambda *_: win.close())
+    header.pack_end(cancel)
+    toolbar.add_top_bar(header)
+
+    page = Adw.StatusPage()
+    page.set_icon_name("input-keyboard-symbolic")
+    page.set_title(prompt)
+    page.set_description(hint)
+    toolbar.set_content(page)
+
+    win.set_content(toolbar)
+    return win
+
+
+def _gtk_window(
+    parent: Optional[Gtk.Window],
+    prompt: str,
+    hint: str,
+    on_result: Callable[[str], None],
+) -> Gtk.Window:
     win = Gtk.Window()
     if parent is not None:
         win.set_transient_for(parent)
@@ -49,12 +113,7 @@ def start_capture(
     cancel.connect("clicked", lambda *_: win.close())
     box.append(cancel)
     win.set_child(box)
-
-    controller = Gtk.EventControllerKey()
-    controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
-    controller.connect("key-pressed", _on_key, win, on_result)
-    win.add_controller(controller)
-    win.present()
+    return win
 
 
 def _on_key(_controller, keyval: int, _keycode: int, state, win, on_result) -> bool:
