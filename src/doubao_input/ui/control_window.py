@@ -108,6 +108,7 @@ class ControlWindow:
         on_sounds_changed: Optional[Callable[[bool], None]] = None,
         on_desktop_shortcut_conflicts: Optional[Callable[[str], Any]] = None,
         last_error: Optional[Callable[[], str]] = None,
+        report: Optional[Callable[[], str]] = None,
     ) -> None:
         self._app_state = app_state
         self._on_login = on_login_clicked
@@ -141,6 +142,8 @@ class ControlWindow:
         self._on_desktop_shortcut_conflicts = on_desktop_shortcut_conflicts
         self._last_error = last_error
         self._last_error_label: Optional[Gtk.Label] = None
+        self._report = report
+        self._report_view: Optional[Gtk.TextView] = None
         self._shortcut_keycap: Optional[Gtk.Label] = None
         self._shortcut_button: Optional[Gtk.Button] = None
         self._shortcut_row = None
@@ -421,6 +424,47 @@ class ControlWindow:
         quit_row.add_suffix(quit_button)
         quit_row.set_activatable_widget(quit_button)
         about_group.add(quit_row)
+
+        # ---- 诊断报告(Myna 的隐私诊断:不含音频/识别文本/文件路径) ----
+        report_group = Adw.PreferencesGroup(
+            title="诊断报告",
+            description="报告不含音频、识别文本或任何文件路径(路径一律替换为 [redacted])。",
+        )
+        diag.add(report_group)
+
+        report_buttons = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        refresh_button = Gtk.Button.new_with_label("刷新")
+        refresh_button.set_tooltip_text("重新检查本机与各组件状态")
+        refresh_button.connect("clicked", lambda *_: self._refresh_report())
+        report_buttons.append(refresh_button)
+        copy_button = Gtk.Button.new_with_label("复制")
+        copy_button.set_tooltip_text("复制隐私安全的诊断报告到剪贴板")
+        copy_button.connect("clicked", lambda *_: self._copy_report())
+        report_buttons.append(copy_button)
+        try:
+            report_group.set_header_suffix(report_buttons)
+        except Exception:
+            # 老版本 libadwaita 没有 header-suffix,就退化成一行。
+            actions = Adw.ActionRow(title="操作")
+            actions.add_suffix(report_buttons)
+            report_group.add(actions)
+
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_min_content_height(240)
+        scrolled.set_vexpand(True)
+        scrolled.set_has_frame(True)
+        self._report_view = Gtk.TextView()
+        self._report_view.set_editable(False)
+        self._report_view.set_cursor_visible(False)
+        self._report_view.set_monospace(True)
+        self._report_view.set_left_margin(8)
+        self._report_view.set_right_margin(8)
+        self._report_view.set_top_margin(8)
+        self._report_view.set_bottom_margin(8)
+        self._report_view.set_wrap_mode(Gtk.WrapMode.WORD)
+        scrolled.set_child(self._report_view)
+        report_group.add(scrolled)
+        self._refresh_report()
 
         stack.add_titled_with_icon(account, "account", "账号", "avatar-default-symbolic")
         stack.add_titled_with_icon(input_page, "input", "输入", "input-keyboard-symbolic")
@@ -709,6 +753,32 @@ class ControlWindow:
             )
         except Exception as e:
             self._last_error_label.set_text(f"未知 ({e})")
+
+    # ---- 诊断报告(Myna 的隐私诊断) ----
+
+    def _refresh_report(self) -> None:
+        if self._report_view is None:
+            return
+        try:
+            text = self._report() if self._report is not None else ""
+        except Exception as e:
+            logger.warning("diagnostics report failed: %s", e)
+            text = f"诊断报告生成失败: {e}"
+        self._report_view.get_buffer().set_text(text)
+
+    def _copy_report(self) -> None:
+        if self._report_view is None:
+            return
+        try:
+            buffer = self._report_view.get_buffer()
+            text = buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter(), False)
+            from gi.repository import Gdk  # type: ignore
+
+            clipboard = Gdk.Display.get_default().get_clipboard()
+            clipboard.set(Gdk.ContentProvider.new_for_value(text))
+            self.toast("诊断报告已复制到剪贴板")
+        except Exception as e:
+            self.toast(f"复制失败: {e}")
 
     def _refresh_hud_status(self) -> None:
         if not self._hud_status_label:

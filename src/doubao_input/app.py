@@ -58,6 +58,7 @@ from doubao_input.hud.wire import IDLE, LOADING, NOTICE, RECORDING, STATUS_EMPTY
 from doubao_input.inject.injector import Injector
 from doubao_input.trigger.desktop_shortcut import DesktopShortcut
 from doubao_input.trigger.evdev_ptt import EvdevPtt
+from doubao_input.ui import diagnostics
 from doubao_input.ui.control_window import ControlWindow
 from doubao_input.ui.focus_watch import focused_identity, reason, supported
 from doubao_input.ui.notifier import Notifier
@@ -421,6 +422,7 @@ class DoubaoInputApp(Gtk.Application):
             on_sounds_changed=self.set_sounds,
             on_desktop_shortcut_conflicts=self.desktop_shortcut_conflicts,
             last_error=self._last_error,
+            report=lambda: diagnostics.collect(self),
         )
 
         # ---- Initial state: cached params? ----
