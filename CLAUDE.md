@@ -47,6 +47,18 @@ src/doubao_input/
 │                           release and the paste shortcut never registers. uinput
 │                           device is created lazily and kept alive for process life.
 │
+├── hud/                    Myna HUD front-end (optional, snap-free). Publishes
+│   │                       com.canonical.Myna.Dictation so Myna's `myna-hud`
+│   │                       (Rust/GTK4) draws the pill.
+│   ├── bridge.py           AppState signals → wire State/StatusMessage; the
+│   │                       ~20 Hz level pump (audio thread writes only a float)
+│   ├── publisher.py        Gio/DBus publisher. Properties only, no custom
+│   │                       signals (contract §Confinement)
+│   ├── launcher.py         spawn/supervise the myna-hud process; skips spawn
+│   │                       when the GNOME myna-shell extension is enabled
+│   ├── wire.py             wire vocabulary + introspection XML
+│   └── settings.py         ~/.config/doubao-input/hud.json
+│
 ├── login/resources/        inject-websocket.js, inject-dom.js — loaded by WebView
 │                           to intercept /alice/profile/self + read localStorage.
 │
@@ -54,7 +66,13 @@ src/doubao_input/
     ├── overlay.py          Top-center "waveform capsule" (PttOverlay). Non-focusable
     │                       (set_can_focus(False)). Reads RMS, draws scrolling bars,
     │                       wraps transcription text up to OVERLAY_MAX_LINES.
-    └── control_window.py   Login / help / mic-test / paste-test / quit.
+    │                       Only used when the Myna HUD is off or unavailable.
+    └── control_window.py   libadwaita settings window, 3 ViewStack pages
+                            (账号 / 输入 / 诊断) in Myna Settings' style:
+                            Adw.ApplicationWindow + ToolbarView + HeaderBar +
+                            ViewSwitcher + PreferencesPage/Group + SwitchRow,
+                            plus Adw.ToastOverlay for transient results. Falls
+                            back to a plain GTK4 window when Adw is missing.
 
 tests/probe/                Manual verification scripts (NOT pytest). P5_login.py and
                            P6_asr.py confirm Doubao login + ASR round-trip still works.
@@ -123,6 +141,21 @@ not currently wired up — tests/probe/ are manual-only.
 - `src/doubao_input/doubao/` is from `doubao-murmur` (MIT). When porting a change from upstream,
   update the docstring attribution in the affected file and amend [`NOTICE`](NOTICE) if the
   delta is non-trivial.
+
+## Myna HUD front-end
+
+The desktop pill can be drawn by Myna's `myna-hud` (Rust/GTK4, built with
+`bash scripts/build-myna-hud.sh`, no snap). The seam is
+`com.canonical.Myna.Dictation` — properties only, contract:
+`~/Desktop/myna/specs/004-gnome-shell-indicator/contracts/dbus-interface.md`.
+
+- Do NOT put transcript content anywhere but `StatusMessage` (contract C3);
+  `HUD_SHOW_TRANSCRIPT` is a deliberate, documented deviation that shows the
+  newest slice of the recognized text in the pill.
+- Levels are pushed at ~20 Hz and are **never** deduplicated (R16a): the
+  renderer decays by arrival time, so a steady voice must keep refreshing.
+- If the renderer is missing or dies, the app falls back to `ui/overlay.py`
+  silently; recording and injection must keep working either way.
 
 ## What "done" looks like for a change
 

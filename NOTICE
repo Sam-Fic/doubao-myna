@@ -24,7 +24,33 @@ DoubaoASRClient.swift"). Modifications from the upstream code are:
      upstream `handle_toggle()` API, converting the toggle interaction
      into a push-to-hold (push-to-talk) interaction.
 
-Everything else under `src/doubao_input/` (trigger/, inject/, ui/, app.py,
-__main__.py) is original work for this project.
+Everything else under `src/doubao_input/` (trigger/, inject/, ui/, hud/,
+app.py, __main__.py) is original work for this project.
 
 Tests under `tests/probe/` are original work.
+
+## Desktop user interface: Myna (Canonical Ltd.)
+
+The desktop presentation layer is modelled on / wired to
+**Myna** (https://github.com/canonical/myna), which is licensed under the
+**GNU Affero General Public License v3.0 or later**:
+
+  - The application icon (`src/doubao_input/resources/logo.svg`, installed
+    as `debian/doubao-input.svg`) is Myna's icon
+    (`client/data/icons/hicolor/scalable/apps/com.canonical.Myna.svg`),
+    used unmodified.
+  - The optional floating indicator is drawn by Myna's `myna-hud`
+    renderer, driven over the `com.canonical.Myna.Dictation` D-Bus
+    interface (`src/doubao_input/hud/`). No Myna source code is linked
+    into or compiled with this project: the renderer is a separate
+    process, built from Myna's own source tree by
+    `scripts/build-myna-hud.sh`, and the GNOME Shell overlay host is
+    installed from Myna's tree by `scripts/install-gnome-extension.sh`.
+  - The settings window (`src/doubao_input/ui/control_window.py`) is
+    original code written in Myna Settings' libadwaita style
+    (Adw.ApplicationWindow / ToolbarView / ViewStack / PreferencesPage);
+    it is a re-implementation of the look, not a copy of Myna's source.
+
+Because Myna is AGPL-3.0-or-later and its icon is used as an asset here,
+this notice records the attribution; the Myna-derived binaries are only
+ever run as separate processes and are not distributed by this project.

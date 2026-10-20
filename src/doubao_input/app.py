@@ -26,6 +26,14 @@ from doubao_input.doubao.audio_capture import AudioCapture
 from doubao_input.doubao.config import INJECT_USE_SHIFT, PASTE_DELAY
 from doubao_input.doubao.params_store import ParamsStore
 from doubao_input.doubao.transcription import TranscriptionManager
+from doubao_input.hud.bridge import MynaHudBridge
+from doubao_input.hud.settings import (
+    load_enabled,
+    load_inject_shift,
+    save_enabled,
+    save_inject_shift,
+)
+from doubao_input.hud.wire import IDLE, LOADING, NOTICE, RECORDING
 from doubao_input.inject.injector import Injector
 from doubao_input.trigger.evdev_ptt import EvdevPtt
 from doubao_input.ui.control_window import ControlWindow
@@ -54,6 +62,10 @@ class DoubaoInputApp(Gtk.Application):
         self._tm: TranscriptionManager | None = None
         self._injector: Injector | None = None
         self._last_press_at: float = 0.0
+        # Myna 悬浮胶囊前端(self._hud 存在 != 生效:渲染器没起来就退回内置悬浮窗)
+        self._hud: MynaHudBridge | None = None
+        self._use_hud = False
+        self._inject_shift = load_inject_shift()
 
     # ---- Gtk.Application hooks (signal handlers, not do_*) ----
 
@@ -71,24 +83,107 @@ class DoubaoInputApp(Gtk.Application):
         GLib.timeout_add(400, self._boot_flash_overlay)
 
     def _boot_flash_overlay(self) -> bool:
+        message = "豆包输入法已启动 · 请登录或按住右 Ctrl 说话"
+        if self._use_hud and self._hud is not None:
+            self._hud.flash(NOTICE, message, 3000)
+            return False
         if self._overlay is None:
             return False
-        self._overlay.show("豆包输入法已启动 · 请登录或按住右 Ctrl 说话")
+        self._overlay.show(message)
         GLib.timeout_add_seconds(3, lambda: (self._overlay.hide(), False)[1])
         return False
 
     def _on_shutdown(self, _app) -> None:
         logger.info("shutting down")
+        if self._hud:
+            self._hud.close()
+            self._hud = None
         if self._ptt:
             self._ptt.stop()
         if self._injector:
             self._injector.close()
+
+    # ---- Myna HUD 前端 ----
+
+    def _start_hud(self) -> bool:
+        """启动 Myna 悬浮胶囊。拿不到 D-Bus 名字或拉不起渲染器就退回内置悬浮窗。"""
+        if self._hud is not None:
+            self._hud.close()
+            self._hud = None
+        self._hud = MynaHudBridge(
+            self.app_state,
+            on_press=self._on_ptt_press,
+            on_release=self._on_ptt_release,
+            on_failed=self._on_hud_failed,
+        )
+        self._use_hud = self._hud.start() and self._hud.active
+        if self._use_hud:
+            logger.info("Myna HUD ready: %s", self._hud.renderer_status())
+        else:
+            logger.warning(
+                "Myna HUD 不可用,沿用内置悬浮窗: %s", self._hud.renderer_status()
+            )
+        return self._use_hud
+
+    def _on_hud_failed(self, message: str) -> None:
+        logger.error("Myna HUD 失效,回退到内置悬浮窗: %s", message)
+        self._use_hud = False
+
+    def _hud_status(self) -> str:
+        return self._hud.renderer_status() if self._hud is not None else "未启用"
+
+    def set_inject_shift(self, enabled: bool) -> None:
+        """控制窗口的粘贴方式开关(Ctrl+Shift+V / Ctrl+V)。"""
+        self._inject_shift = bool(enabled)
+        save_inject_shift(self._inject_shift)
+
+    def set_hud_enabled(self, enabled: bool) -> None:
+        """控制窗口开关:实时切换指示器并记住选择。"""
+        save_enabled(enabled)
+        if enabled:
+            self._start_hud()
+        else:
+            if self._hud is not None:
+                self._hud.close()
+                self._hud = None
+            self._use_hud = False
+
+    # ---- 指示器路由(内置悬浮窗 / Myna 胶囊二选一) ----
+
+    def _indicator_show(self, wire_state: str, message: str) -> None:
+        if self._hud is not None:
+            self._hud.set_state(wire_state, message)
+        if self._overlay is not None and not self._use_hud:
+            self._overlay.show(message)
+
+    def _indicator_text(self, message: str) -> None:
+        if self._hud is not None:
+            self._hud.set_state(RECORDING, message)
+        if self._overlay is not None and not self._use_hud:
+            self._overlay.set_text(message)
+
+    def _indicator_hide(self) -> None:
+        if self._hud is not None:
+            self._hud.idle()
+        if self._overlay is not None and not self._use_hud:
+            self._overlay.hide()
+
+    def _push_rms(self, rms: float) -> None:
+        """麦克风 RMS 回调(音频线程)。这里只写值,不碰 GTK。"""
+        if self._hud is not None:
+            self._hud.push_level(rms)
+        if self._overlay is not None and not self._use_hud:
+            self._overlay.push_rms(rms)
 
     # ---- build ----
 
     def _build(self) -> None:
         self._overlay = Overlay()
         self._injector = Injector()
+
+        # ---- Myna HUD:桌面上那个胶囊可以换成 Myna 的渲染器 ----
+        if load_enabled():
+            self._start_hud()
 
         # ---- TranscriptionManager (state machine) ----
         tm = TranscriptionManager(self.app_state)
@@ -103,7 +198,7 @@ class DoubaoInputApp(Gtk.Application):
         _ac_orig_start = self._audio_capture.start
         def _start_with_rms(on_audio_data):
             _ac_orig_start(on_audio_data)
-            self._audio_capture._on_rms = self._overlay.push_rms
+            self._audio_capture._on_rms = self._push_rms
         self._audio_capture.start = _start_with_rms  # type: ignore[assignment]
         _ac_orig_stop = self._audio_capture.stop
         def _stop_clear_rms():
@@ -112,9 +207,11 @@ class DoubaoInputApp(Gtk.Application):
         self._audio_capture.stop = _stop_clear_rms  # type: ignore[assignment]
 
         tm.on_show_login = self._show_login
-        tm.on_overlay_show = lambda: self._overlay.show("正在启动语音识别…")
-        tm.on_overlay_hide = lambda: self._overlay.hide()
-        tm.on_overlay_update = lambda text: self._overlay.set_text(text)
+        tm.on_overlay_show = lambda: self._indicator_show(
+            LOADING, "正在启动语音识别…"
+        )
+        tm.on_overlay_hide = self._indicator_hide
+        tm.on_overlay_update = lambda text: self._indicator_text(text)
         tm.on_paste = self._do_paste
         tm.on_cancel_enabled_changed = lambda enabled: None
         tm.on_auth_expired = self._on_auth_expired
@@ -129,6 +226,11 @@ class DoubaoInputApp(Gtk.Application):
             on_check_mic_clicked=self._check_mic,
             on_test_inject_clicked=self._test_inject,
             app=self,
+            hud_enabled=self._use_hud,
+            on_hud_toggle=self.set_hud_enabled,
+            hud_status=self._hud_status,
+            inject_shift=self._inject_shift,
+            on_inject_shift_toggle=self.set_inject_shift,
         )
 
         # ---- Initial state: cached params? ----
@@ -143,7 +245,14 @@ class DoubaoInputApp(Gtk.Application):
             on_release=self._on_ptt_release,
             on_error=self._on_ptt_error,
         )
-        if not self._ptt.start():
+        try:
+            started = self._ptt.start()
+        except Exception as e:
+            # 缺 evdev / 没进 input 组都走这里:热键没了,但控制窗口和
+            # HUD 还得起来,否则用户没法诊断。
+            started = False
+            logger.warning("evdev PTT failed: %s", e)
+        if not started:
             logger.warning("evdev PTT failed to start; will retry in background")
             # Don't block; user can still open the control window to diagnose.
 
@@ -155,8 +264,11 @@ class DoubaoInputApp(Gtk.Application):
         if not self._tm:
             return
         if self.app_state.login_status != LoginStatus.LOGGED_IN:
-            self._overlay.set_text("请先在控制窗口完成登录")
-            self._overlay.show("未登录")
+            if self._use_hud and self._hud is not None:
+                self._hud.notice("请先在控制窗口登录豆包")
+            else:
+                self._overlay.set_text("请先在控制窗口完成登录")
+                self._overlay.show("未登录")
             return
         self._tm.handle_press()
 
@@ -164,7 +276,7 @@ class DoubaoInputApp(Gtk.Application):
         if not self._tm:
             return
         if self.app_state.login_status != LoginStatus.LOGGED_IN:
-            self._overlay.hide()
+            self._indicator_hide()
             return
         self._tm.handle_release()
 
@@ -178,6 +290,9 @@ class DoubaoInputApp(Gtk.Application):
         if not self._injector:
             logger.warning("no injector; paste skipped")
             return
+        # Myna 胶囊也要先消失,否则注入的 Ctrl+V 会落到我们的窗口上。
+        if self._hud is not None:
+            self._hud.set_state(IDLE, "")
         # CRITICAL: hide BOTH our windows so the injected Ctrl+V goes
         # to whatever input field the user had focused before pressing
         # right-Ctrl, not to our own widgets. On Wayland, focus
@@ -201,7 +316,7 @@ class DoubaoInputApp(Gtk.Application):
 
         def do_inject():
             logger.info("_do_paste: now injecting %r", text[:30])
-            ok = self._injector.inject(text, use_shift=INJECT_USE_SHIFT)
+            ok = self._injector.inject(text, use_shift=self._inject_shift)
             logger.info("_do_paste: injector.inject returned %s", ok)
             # Restore control window
             def restore_control():
@@ -227,6 +342,8 @@ class DoubaoInputApp(Gtk.Application):
         voice pipeline uses. Used by the 「测试粘贴」 button so the user
         can verify wl-copy + uinput Ctrl+V without logging in first."""
         logger.info("_test_inject: clicked 测试粘贴 button")
+        if self._control is not None:
+            self._control.toast("正在注入 'hello 测试 123'…")
         # Use the same focus-management code path as _do_paste so we
         # can be confident the test matches production behaviour.
         self._do_paste("hello 测试 123\n")
@@ -245,6 +362,8 @@ class DoubaoInputApp(Gtk.Application):
         if status == "loggedIn":
             self.app_state.login_status = LoginStatus.LOGGED_IN
             logger.info("logged in as %s", nickname)
+            if self._control is not None:
+                self._control.toast(f"已登录:{nickname or '豆包账号'}")
             # Extract params after a short delay, then close the WebView.
             GLib.timeout_add(800, self._extract_and_close_login)
 
@@ -280,16 +399,19 @@ class DoubaoInputApp(Gtk.Application):
         self._show_login()
 
     def _check_mic(self) -> None:
-        """3-second mic test: open stream, push RMS to the overlay, then close."""
-        self._overlay.show("麦克风测试中…")
-        self._overlay.set_text("请对麦克风说话")
+        """3-second mic test: open stream, push RMS to the indicator, then close."""
+        if self._use_hud and self._hud is not None:
+            self._hud.flash(RECORDING, "麦克风测试中…", 4000)
+        else:
+            self._overlay.show("麦克风测试中…")
+            self._overlay.set_text("请对麦克风说话")
 
         captured: list[float] = []
         cap = self._audio_capture
 
         def on_rms_test(rms: float):
             captured.append(rms)
-            self._overlay.push_rms(rms)
+            self._push_rms(rms)
 
         # Hook RMS for the test (we restore it after stop)
         cap._on_rms = on_rms_test
@@ -306,17 +428,26 @@ class DoubaoInputApp(Gtk.Application):
             if captured:
                 peak = max(captured)
                 avg = sum(captured) / len(captured)
-                self._overlay.set_text(f"测试完成  peak={peak:.2f}  avg={avg:.3f}")
+                message = f"测试完成  peak={peak:.2f}  avg={avg:.3f}"
             else:
-                self._overlay.set_text("测试完成(无数据)")
+                message = "测试完成(无数据)"
+            if self._use_hud and self._hud is not None:
+                self._hud.flash(RECORDING, message, 1500)
+            else:
+                self._overlay.set_text(message)
+            if self._control is not None:
+                self._control.toast(message)
             return False
 
         GLib.timeout_add(3000, stop_and_report)
-        GLib.timeout_add(4500, lambda: self._overlay.hide() or False)
+        GLib.timeout_add(4500, lambda: self._indicator_hide() or False)
 
     def _quit(self) -> None:
         if self._tm and self.app_state.recording_state != RecordingState.IDLE:
             self._tm.handle_cancel()
+        if self._hud:
+            self._hud.close()
+            self._hud = None
         if self._ptt:
             self._ptt.stop()
         if self._injector:

@@ -1,2 +1,3 @@
 debian/doubao-input.service /usr/lib/systemd/user/
 debian/doubao-input.desktop /usr/share/applications/
+debian/doubao-input.svg /usr/share/icons/hicolor/scalable/apps/
