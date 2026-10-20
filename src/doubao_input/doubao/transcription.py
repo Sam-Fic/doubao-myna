@@ -209,7 +209,8 @@ class TranscriptionManager:
 
     def _complete_transcription(self) -> None:
         text = self.app_state.transcription_text.strip()
-        logger.info("Completing transcription: '%s'", text[:50])
+        # 日志只记长度,不记内容(同 _do_paste:文本可能很私密,journald 留存)
+        logger.info("Completing transcription (len=%d)", len(text))
         if text and self.on_paste:
             self.on_paste(text)
         elif not text and self.on_empty_result:

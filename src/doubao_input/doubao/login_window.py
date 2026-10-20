@@ -65,7 +65,11 @@ class LoginWindow:
 
         # WebKitGTK configuration
         settings = WebKit.Settings()
-        settings.set_property("enable-developer-extras", True)
+        # 开发者工具只在显式 DEBUG 时打开:常开会让任何页面(包括嵌入的
+        # 第三方 iframe)拿到检查器入口。
+        settings.set_property(
+            "enable-developer-extras", logger.isEnabledFor(logging.DEBUG)
+        )
         settings.set_property("user-agent", WEBVIEW_USER_AGENT)
 
         # User content manager for JS injection
@@ -82,7 +86,9 @@ class LoginWindow:
             )
             script = WebKit.UserScript.new(
                 adapted_js,
-                WebKit.UserContentInjectedFrames.ALL_FRAMES,
+                # 只注入主框架:登录检测拦截的是 doubao.com 顶层的
+                # /alice/profile/self 请求,没有进第三方 iframe 的必要。
+                WebKit.UserContentInjectedFrames.TOP_FRAME,
                 WebKit.UserScriptInjectionTime.START,
                 None,
                 None,

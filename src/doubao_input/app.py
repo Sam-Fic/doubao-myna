@@ -15,6 +15,7 @@ import logging
 import os
 import sys
 import time
+from pathlib import Path
 
 import gi
 
@@ -31,6 +32,7 @@ from doubao_input.doubao.config import (
     PASTE_DELAY,
     SILENCE_RMS_THRESHOLD,
     TRIGGER_KEY_CHOICES,
+    get_config_dir,
 )
 from doubao_input.doubao.params_store import ParamsStore
 from doubao_input.doubao.transcription import TranscriptionManager
@@ -150,7 +152,16 @@ class DoubaoInputApp(Gtk.Application):
                     show = True
                 elif argument == "--log-file" and index + 1 < len(arguments):
                     index += 1
-                    log_file = arguments[index]
+                    # 只接受相对文件名(落到应用自己的配置目录);绝对路径
+                    # 一律拒绝,避免把日志写到任意位置。
+                    candidate = arguments[index]
+                    if os.path.isabs(candidate):
+                        logger.warning(
+                            "--log-file 仅接受文件名(写入配置目录),忽略绝对路径: %s",
+                            candidate,
+                        )
+                    else:
+                        log_file = Path(candidate).name
                 else:
                     logger.info("ignoring unknown argument: %s", argument)
                 index += 1
@@ -169,12 +180,14 @@ class DoubaoInputApp(Gtk.Application):
     @staticmethod
     def _attach_file_log(path: str) -> None:
         try:
-            handler = logging.FileHandler(path, encoding="utf-8")
+            # 相对文件名统一落到应用配置目录(那里是 0700,不会别组/别人读)
+            target = get_config_dir() / Path(path).name
+            handler = logging.FileHandler(target, encoding="utf-8")
             handler.setFormatter(
                 logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
             )
             logging.getLogger().addHandler(handler)
-            logger.info("logging to %s", path)
+            logger.info("logging to %s", target)
         except Exception as e:
             logger.warning("cannot log to %s: %s", path, e)
 
@@ -731,7 +744,9 @@ class DoubaoInputApp(Gtk.Application):
     # ---- Paste ----
 
     def _do_paste(self, text: str) -> None:
-        logger.info("_do_paste called, text=%r (len=%d)", text[:30], len(text))
+        # 注意:日志里绝不出现 text 内容 —— 识别文本可能很私密,
+        # 且 systemd user 服务下 stdout 会进 journald 持久留存。
+        logger.info("_do_paste called (len=%d)", len(text))
         if not self._injector:
             logger.warning("no injector; paste skipped")
             return
@@ -758,7 +773,7 @@ class DoubaoInputApp(Gtk.Application):
                 control_was_active = False
 
         def do_inject():
-            logger.info("_do_paste: now injecting %r", text[:30])
+            logger.info("_do_paste: now injecting (len=%d)", len(text))
             ok = self._injector.inject(text, use_shift=self._inject_shift)
             logger.info("_do_paste: injector.inject returned %s", ok)
             if not ok:
@@ -766,6 +781,20 @@ class DoubaoInputApp(Gtk.Application):
                 self._indicator_notice("粘贴失败,文字仍在剪贴板,可手动 Ctrl+Shift+V")
                 if self._control is not None:
                     self._control.toast("粘贴失败,文字仍在剪贴板")
+            else:
+                # 注入成功后清空剪贴板:识别文本不再留在系统剪贴板
+                # (剪贴板管理器历史、下一次误粘贴都不会带上它)。
+                # 延迟要足够长,目标应用先把 Ctrl+V 消费掉。
+                injector_ref = self._injector
+
+                def clear_clipboard():
+                    try:
+                        injector_ref.clear_clipboard()
+                    except Exception:
+                        pass
+                    return GLib.SOURCE_REMOVE
+
+                GLib.timeout_add(1500, clear_clipboard)
             # 只有刚才被我们藏起来的窗口才恢复(见上文 is_active 判断)。
             def restore_control():
                 if (

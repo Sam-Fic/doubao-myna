@@ -62,6 +62,28 @@ class Injector:
         with self._lock:
             return self._simulate_paste(use_shift=use_shift)
 
+    def clear_clipboard(self) -> bool:
+        """清空剪贴板(识别文本注入成功后调用,免得留在剪贴板历史里)。
+
+        用空输入覆盖剪贴板;没有 wl-copy/xclip 时静默失败(非关键路径)。
+        """
+        for cmd in command_candidates("wl-copy"):
+            try:
+                subprocess.run(cmd, input=b"", check=True, timeout=3)
+                return True
+            except Exception as e:
+                logger.debug("wl-copy clear failed: %s", e)
+        for cmd in command_candidates("xclip"):
+            try:
+                subprocess.run(
+                    cmd + ["-selection", "clipboard"],
+                    input=b"", check=True, timeout=3,
+                )
+                return True
+            except Exception as e:
+                logger.debug("xclip clear failed: %s", e)
+        return False
+
     def close(self) -> None:
         with self._lock:
             if self._ui is not None:
