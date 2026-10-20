@@ -42,6 +42,8 @@ from doubao_input.hud.settings import (
     load_silence_timeout,
     load_sounds,
     load_stop_on_focus_loss,
+    load_onboarding_done,
+    save_onboarding_done,
     load_trigger_key,
     load_trigger_mode,
     save_desktop_shortcut,
@@ -62,6 +64,7 @@ from doubao_input.ui import diagnostics
 from doubao_input.ui.control_window import ControlWindow
 from doubao_input.ui.focus_watch import focused_identity, reason, supported
 from doubao_input.ui.notifier import Notifier
+from doubao_input.ui.onboarding import OnboardingWindow, available as adw_available
 from doubao_input.ui.overlay import Overlay
 from doubao_input.ui.sounds import Sounds
 
@@ -103,6 +106,7 @@ class DoubaoInputApp(Gtk.Application):
         self._stop_on_focus_loss = load_stop_on_focus_loss()
         self._sounds = Sounds(load_sounds())
         self._notifier: Notifier | None = None
+        self._onboarding: OnboardingWindow | None = None
         self._last_voice_at = 0.0
         self._silence_timer = 0
         self._focus_timer = 0
@@ -112,24 +116,46 @@ class DoubaoInputApp(Gtk.Application):
     # ---- Gtk.Application hooks (signal handlers, not do_*) ----
 
     def do_command_line(self, command_line) -> int:
-        """命令行开关:-v/--verbose、--quiet、--show(唤起控制窗口)。"""
+        """命令行开关:-v/--verbose、--quiet、--show、--log-file <路径>。"""
         level = logging.INFO
         show = False
-        for argument in command_line.get_arguments()[1:]:
+        log_file = None
+        arguments = command_line.get_arguments()[1:]
+        index = 0
+        while index < len(arguments):
+            argument = arguments[index]
             if argument in ("--verbose", "-v"):
                 level = logging.DEBUG
             elif argument == "--quiet":
                 level = logging.WARNING
             elif argument == "--show":
                 show = True
+            elif argument == "--log-file" and index + 1 < len(arguments):
+                index += 1
+                log_file = arguments[index]
             else:
                 logger.info("ignoring unknown argument: %s", argument)
+            index += 1
         logging.getLogger().setLevel(level)
         logger.debug("command line level set to %s", logging.getLevelName(level))
+        if log_file:
+            self._attach_file_log(log_file)
         self.activate()
         if show and self._control is not None:
             self._control.show()
         return 0
+
+    @staticmethod
+    def _attach_file_log(path: str) -> None:
+        try:
+            handler = logging.FileHandler(path, encoding="utf-8")
+            handler.setFormatter(
+                logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+            )
+            logging.getLogger().addHandler(handler)
+            logger.info("logging to %s", path)
+        except Exception as e:
+            logger.warning("cannot log to %s: %s", path, e)
 
     def _on_activate(self, _app) -> None:
         logger.info("on_activate: setup_done=%s", self._setup_done)
@@ -143,6 +169,58 @@ class DoubaoInputApp(Gtk.Application):
         # in. This is the "弹出输入法" signal. Hide it 3 seconds later.
         from gi.repository import GLib
         GLib.timeout_add(400, self._boot_flash_overlay)
+        # 首次运行:先弹控制窗口,再开向导(Myna 的 onboarding)。
+        if not load_onboarding_done():
+            GLib.timeout_add(600, self._maybe_show_onboarding)
+
+    def _maybe_show_onboarding(self) -> bool:
+        if load_onboarding_done():
+            return GLib.SOURCE_REMOVE
+        self.show_onboarding()
+        return GLib.SOURCE_REMOVE
+
+    def _show_about(self) -> None:
+        """关于窗口(Myna Settings 的主菜单同款)。"""
+        if not adw_available():
+            return
+        from gi.repository import Adw  # type: ignore
+
+        about = Adw.AboutWindow()
+        about.set_transient_for(self._control._window if self._control else None)
+        about.set_application_name("豆包语音输入法")
+        about.set_version("Myna 界面版")
+        about.set_developer_name("Sam-Fic")
+        about.set_license_type(__import__("gi.repository.Gtk", fromlist=["Gtk"]).License.AGPL_3)
+        about.set_comments(
+            "按住右 Ctrl 说话,松开自动粘贴。识别走豆包网页 ASR,界面用 Myna 那套。"
+        )
+        about.set_website("https://github.com/Sam-Fic/doubao-myna")
+        about.set_issue_url("https://github.com/Sam-Fic/doubao-myna/issues")
+        about.add_credit_section("致谢", ["Myna (Canonical) — 界面 / 图标 / myna-hud", "doubao-murmur — 豆包逆向逻辑", "wurong98/doubao-input-for-linux — 上游"])
+        try:
+            about.present()
+        except Exception as e:
+            logger.warning("about window failed: %s", e)
+
+    def show_onboarding(self) -> None:
+        """打开首次运行向导(设置窗口主菜单也能再开)。"""
+        if not adw_available():
+            logger.info("libadwaita 不可用,跳过向导")
+            return
+        if self._onboarding is None:
+            self._onboarding = OnboardingWindow(
+                app_state=self.app_state,
+                on_login=self._show_login,
+                on_shortcut_set=self.set_desktop_shortcut,
+                on_shortcut_conflicts=self.desktop_shortcut_conflicts,
+                desktop_shortcut=self.desktop_shortcut,
+                hud_status=self._hud_status,
+                hud_enabled=self._use_hud,
+                on_finish=lambda: save_onboarding_done(True),
+                parent=self._control._window if self._control else None,
+            )
+        self._onboarding.show()
+        self._onboarding.refresh()
 
     def _boot_flash_overlay(self) -> bool:
         message = "豆包输入法已启动 · 请登录或按住右 Ctrl 说话"
@@ -157,6 +235,7 @@ class DoubaoInputApp(Gtk.Application):
 
     def _on_shutdown(self, _app) -> None:
         logger.info("shutting down")
+        self._onboarding = None
         if self._hud:
             self._hud.close()
             self._hud = None
@@ -423,6 +502,8 @@ class DoubaoInputApp(Gtk.Application):
             on_desktop_shortcut_conflicts=self.desktop_shortcut_conflicts,
             last_error=self._last_error,
             report=lambda: diagnostics.collect(self),
+            on_run_onboarding=self.show_onboarding,
+            on_about=self._show_about,
         )
 
         # ---- Initial state: cached params? ----

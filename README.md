@@ -94,12 +94,15 @@ python3 -m venv .venv
 ```
 
 ### 首次配置
-启动应用后，系统将弹出 WebKitGTK 登录窗口。在 WebView 中完成豆包网页登录后，内置 JS 拦截器将自动提取 Cookies、`device_id` 及 `web_id`，并写入 `~/.config/doubao-input/asr_params.json`。登录窗口随后自动关闭。
+首次启动会先弹出**设置向导**（对齐 Myna 的 onboarding）：欢迎 → 登录豆包（未登录无法继续）→ 设置快捷键（可跳过，之后在设置窗口配置）→ Myna 悬浮胶囊（可选，附安装命令）。向导只出现一次，之后可在设置窗口主菜单「运行设置向导…」重新打开。
+
+在 WebView 中完成豆包网页登录后，内置 JS 拦截器将自动提取 Cookies、`device_id` 及 `web_id`，并写入 `~/.config/doubao-input/asr_params.json`。登录窗口随后自动关闭。
 
 **操作逻辑**：
 - **按住右 Ctrl**：唤起悬浮胶囊，实时显示识别文本。
 - **松开右 Ctrl**：等待 1 秒超时以接收末尾结果，通过 `wl-copy` 写入剪贴板，并触发 `uinput` 模拟 Ctrl+Shift+V 粘贴至当前焦点输入框。
 - **按压时间 < 150ms**：判定为误触，取消注入。
+- **会话中按 ESC**：取消并丢弃本次内容。
 
 ---
 
@@ -225,9 +228,8 @@ src/doubao_input/
 ./start.sh --verbose        # 或 -v，打印 DEBUG（evdev 设备扫描、D-Bus 细节等）
 ./start.sh --quiet          # 只看 WARNING 及以上
 ./start.sh --show           # 唤起控制窗口（.desktop 的 show-control action）
+./start.sh --log-file ~/doubao-input.log   # 同时写入文件
 ```
-
-暂未提供文件日志；需要落盘可自行重定向（`./start.sh -v 2> ~/doubao-input.log`）。
 
 ---
 
@@ -274,6 +276,8 @@ systemctl --user enable --now doubao-input.service
 - 命令行支持 `-v/--verbose`、`--quiet`、`--show`（后者让 `.desktop` 的 show-control action 真正生效）。
 - 内置悬浮窗跟随系统「减弱动效」设置。
 - 新增隐私诊断报告（刷新 / 复制，对齐 Myna 的“不含音频、识别文本、文件路径”承诺）。
+- 新增首次运行向导（欢迎 → 登录 → 快捷键 → Myna 胶囊）与设置窗口主菜单（运行向导 / 关于）。
+- 新增 `--log-file` 文件日志；内置悬浮窗支持高对比度。
 - 新增 `docs/myna-parity.md`，逐项记录与 Myna 体验设计的对齐情况。
 
 ### v1.0.2 (2026-06-21)

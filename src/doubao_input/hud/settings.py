@@ -145,3 +145,11 @@ def load_hud_style() -> str:
 
 def save_hud_style(nick: str) -> None:
     set_value("hud_style", str(nick))
+
+
+def load_onboarding_done() -> bool:
+    return bool(get("onboarding_done", False))
+
+
+def save_onboarding_done(done: bool = True) -> None:
+    set_value("onboarding_done", bool(done))

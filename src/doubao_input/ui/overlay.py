@@ -86,6 +86,20 @@ class Overlay:
         # 跟随系统的"减弱动效"(Myna 同样只读运行时属性,不直接碰 a11y schema ——
         # 缺 schema 会让进程 abort)。开启时呼吸/流光全关,只留固定亮度。
         self._reduced_motion = self._prefers_reduced_motion()
+        # 高对比:只加亮边框/背景(Myna 的 pill 同样只做"加亮",不动内容)。
+        self._high_contrast = self._prefers_high_contrast()
+
+    @staticmethod
+    def _prefers_high_contrast() -> bool:
+        try:
+            import gi
+
+            gi.require_version("Adw", "1")
+            from gi.repository import Adw  # type: ignore
+
+            return bool(Adw.StyleManager.get_default().get_high_contrast())
+        except Exception:
+            return False
 
     @staticmethod
     def _prefers_reduced_motion() -> bool:
@@ -203,6 +217,14 @@ class Overlay:
             "  padding: 18px 18px 12px 18px;"
             "}"
         )
+        if self._high_contrast:
+            # 高对比:加深背景、加粗白边。文字与波形不动(Myna 的取舍)。
+            css += (
+                "box {"
+                "  background-color: rgba(0, 0, 0, 0.92);"
+                "  border: 2px solid rgba(255, 255, 255, 0.95);"
+                "}"
+            )
         try:
             provider.load_from_data(css.encode("utf-8"))
         except Exception:

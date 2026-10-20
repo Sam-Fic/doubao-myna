@@ -22,7 +22,7 @@ from typing import Any, Callable, Optional
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import GLib, Gdk, Gtk  # type: ignore
+from gi.repository import GLib, Gtk  # type: ignore
 
 from doubao_input.doubao.app_state import AppState, LoginStatus
 from doubao_input.doubao.config import (
@@ -33,6 +33,7 @@ from doubao_input.doubao.config import (
     TRIGGER_MODE,
     get_params_path,
 )
+from doubao_input.ui.shortcut_capture import start_capture
 
 #: 设置窗口里可选的物理键(evdev 键名 → 显示名)
 TRIGGER_KEY_CHOICES = [
@@ -109,6 +110,8 @@ class ControlWindow:
         on_desktop_shortcut_conflicts: Optional[Callable[[str], Any]] = None,
         last_error: Optional[Callable[[], str]] = None,
         report: Optional[Callable[[], str]] = None,
+        on_run_onboarding: Optional[Callable[[], None]] = None,
+        on_about: Optional[Callable[[], None]] = None,
     ) -> None:
         self._app_state = app_state
         self._on_login = on_login_clicked
@@ -144,6 +147,8 @@ class ControlWindow:
         self._last_error_label: Optional[Gtk.Label] = None
         self._report = report
         self._report_view: Optional[Gtk.TextView] = None
+        self._on_run_onboarding = on_run_onboarding
+        self._on_about = on_about
         self._shortcut_keycap: Optional[Gtk.Label] = None
         self._shortcut_button: Optional[Gtk.Button] = None
         self._shortcut_row = None
@@ -212,6 +217,8 @@ class ControlWindow:
         switcher.set_stack(stack)
         switcher.set_policy(Adw.ViewSwitcherPolicy.WIDE)
         header.set_title_widget(switcher)
+        if self._on_run_onboarding is not None or self._on_about is not None:
+            header.pack_end(self._build_menu())
         toolbar.add_top_bar(header)
 
         self._toast_overlay = Adw.ToastOverlay()
@@ -576,6 +583,41 @@ class ControlWindow:
         if self._on_inject_shift_toggle is not None:
             self._on_inject_shift_toggle(active)
 
+    def _build_menu(self) -> Gtk.Widget:
+        """主菜单:运行设置向导 / 关于(Myna Settings 的同款入口)。"""
+        button = Gtk.MenuButton()
+        button.set_icon_name("open-menu-symbolic")
+        button.set_tooltip_text("主菜单")
+
+        popover = Gtk.Popover()
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.set_margin_top(6)
+        box.set_margin_bottom(6)
+        box.set_margin_start(6)
+        box.set_margin_end(6)
+
+        if self._on_run_onboarding is not None:
+            item = Gtk.Button(label="运行设置向导…")
+            item.add_css_class("flat")
+            item.connect("clicked", self._on_run_onboarding_clicked)
+            box.append(item)
+        if self._on_about is not None:
+            item = Gtk.Button(label="关于")
+            item.add_css_class("flat")
+            item.connect("clicked", self._on_about_clicked)
+            box.append(item)
+        popover.set_child(box)
+        button.set_popover(popover)
+        return button
+
+    def _on_run_onboarding_clicked(self, *_args) -> None:
+        if self._on_run_onboarding is not None:
+            self._on_run_onboarding()
+
+    def _on_about_clicked(self, *_args) -> None:
+        if self._on_about is not None:
+            self._on_about()
+
     # ---- 快捷键(Myna 风格:键帽 + 捕获) ----
 
     def _refresh_shortcut_row(self) -> None:
@@ -591,58 +633,7 @@ class ControlWindow:
             self._shortcut_button.set_sensitive(False)
 
     def _on_shortcut_button(self, *_args) -> None:
-        self._start_shortcut_capture()
-
-    def _start_shortcut_capture(self) -> None:
-        win = Gtk.Window()
-        win.set_transient_for(self._window)
-        win.set_modal(True)
-        win.set_title("设置快捷键")
-        win.set_default_size(420, 170)
-
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        box.set_margin_top(24)
-        box.set_margin_bottom(24)
-        box.set_margin_start(24)
-        box.set_margin_end(24)
-
-        prompt = Gtk.Label(label="按下新的快捷键…")
-        box.append(prompt)
-        hint = Gtk.Label(
-            label="用 Ctrl / Alt / Super 加上另一个键,或单独的功能键。Esc 取消。"
-        )
-        hint.add_css_class("dim-label")
-        hint.set_wrap(True)
-        box.append(hint)
-        cancel = Gtk.Button(label="取消")
-        cancel.connect("clicked", lambda *_: win.close())
-        box.append(cancel)
-        win.set_child(box)
-
-        controller = Gtk.EventControllerKey()
-        controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
-        controller.connect("key-pressed", self._on_capture_key, win)
-        win.add_controller(controller)
-        self._capture_window = win
-        win.present()
-
-    def _on_capture_key(self, _controller, keyval: int, _keycode: int, state, win) -> bool:
-        mods = state & (
-            Gdk.ModifierType.CONTROL_MASK
-            | Gdk.ModifierType.ALT_MASK
-            | Gdk.ModifierType.SUPER_MASK
-        )
-        if keyval == Gdk.KEY_Escape and not mods:
-            win.close()
-            return True
-        # 裸字母一律不收,免得把打字键抢走(Myna 同样如此)。
-        if not mods and not self._is_function_key(keyval):
-            return True
-
-        accelerator = Gtk.accelerator_name(keyval, mods)
-        win.close()
-        self._offer_shortcut(accelerator)
-        return True
+        start_capture(self._window, self._offer_shortcut)
 
     def _offer_shortcut(self, accelerator: str) -> None:
         """写键前先查冲突(Myna:桌面保留键要提示换一个,别人的自定义键可替换)。"""
@@ -690,12 +681,6 @@ class ControlWindow:
             self.toast(f"快捷键已设为 {accelerator}")
         else:
             self.toast(f"快捷键设置失败:{error}")
-
-    @staticmethod
-    def _is_function_key(keyval: int) -> bool:
-        if Gdk.KEY_F1 <= keyval <= Gdk.KEY_F35:
-            return True
-        return 0x1008FF00 <= keyval <= 0x1008FFFF  # XF86 媒体键
 
     # ---- 触发 / 听写设置 ----
 
