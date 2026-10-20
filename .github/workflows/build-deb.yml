@@ -1,0 +1,98 @@
+name: Build .deb & Release
+
+# Build the doubao-input .deb package and publish it as a GitHub Release asset.
+#
+# Triggers:
+#   * Push a tag like `v1.1.0`  -> release at that tag.
+#   * Manual dispatch          -> provide a version (e.g. `1.1.0`); a `v<version>`
+#                                 tag is created and the release is published there.
+#
+# The .deb version itself is taken from debian/changelog (independent of the tag),
+# so remember to bump the changelog before releasing.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version, e.g. 1.1.0 (a v<version> tag will be created)'
+        required: true
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential debhelper devscripts dpkg-dev fakeroot \
+            python3 python3-pip python3-installer
+
+      - name: Build .deb
+        run: bash packaging/build-deb.sh
+
+      - name: Locate built .deb
+        id: deb
+        run: |
+          DEB=$(ls doubao-input_*.deb | head -n1)
+          echo "path=$DEB" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$DEB")" >> "$GITHUB_OUTPUT"
+          echo "Built: $DEB"
+
+      - name: Determine tag & version
+        id: meta
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            TAG="v${{ github.event.inputs.version }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload .deb as artifact (backup)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.deb.outputs.name }}
+          path: ${{ steps.deb.outputs.path }}
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: doubao-input ${{ steps.meta.outputs.version }}
+          body: |
+            Automated build of the **doubao-input** `.deb` package.
+
+            ### Install
+            ```bash
+            sudo apt install ./${{ steps.deb.outputs.name }}
+            ```
+
+            Then re-login (so the `input` group takes effect) and run `doubao-input`,
+            or enable the user service:
+            ```bash
+            systemctl --user enable --now doubao-input.service
+            ```
+
+            ### Package contents
+            - Python app + `doubao-input` launcher
+            - systemd `--user` service for auto-start
+            - hicolor app icon + `.desktop` entry
+            - `postinst` bootstraps a per-user venv (websockets / sounddevice / evdev)
+
+            Full changelog: [`debian/changelog`](debian/changelog).
+          files: ${{ steps.deb.outputs.path }}
