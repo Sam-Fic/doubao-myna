@@ -152,6 +152,20 @@ class MynaHudBridge:
         except (TypeError, ValueError):
             self._level_target = 0.0
 
+    def last_error(self) -> tuple[str, str, int]:
+        """最近一次失败:(标题, 详情, 微秒时间戳)。没有则全空。"""
+        if not self.enabled:
+            return ("", "", 0)
+        props = self._publisher._properties
+        try:
+            return (
+                props["LastError"].get_string(),
+                props["LastErrorDetail"].get_string(),
+                int(props["LastErrorTime"].get_int64()),
+            )
+        except Exception:
+            return ("", "", 0)
+
     def renderer_status(self) -> str:
         if not self.enabled:
             return "未启用"
@@ -195,7 +209,11 @@ class MynaHudBridge:
         if not value:
             return
         # 豆包的错误信息是给用户看的,内容可控(不含识别内容)。
-        self.error(value[:HUD_STATUS_MAX_CHARS])
+        headline = value[:HUD_STATUS_MAX_CHARS]
+        self.error(headline)
+        # 顺手记进"最近错误"(粘性,供诊断页读取)。
+        if self.enabled:
+            self._publisher.set_last_error(headline, value)
 
     def _on_login(self, _state: AppState, _value: str) -> None:
         if self._app_state.login_status == LoginStatus.NOT_LOGGED_IN:

@@ -43,6 +43,9 @@ INTROSPECTION_XML = """
     <property name="AudioRms" type="d" access="read"/>
     <property name="AudioPeak" type="d" access="read"/>
     <property name="HudStyle" type="s" access="read"/>
+    <property name="LastError" type="s" access="read"/>
+    <property name="LastErrorDetail" type="s" access="read"/>
+    <property name="LastErrorTime" type="x" access="read"/>
     <method name="Start">
       <arg type="b" name="ok" direction="out"/>
       <arg type="s" name="error" direction="out"/>

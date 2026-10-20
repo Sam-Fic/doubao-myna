@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import logging
+import time
 import warnings
 from typing import Callable, Optional
 
@@ -57,6 +58,11 @@ class DictationPublisher:
             "AudioRms": GLib.Variant("d", 0.0),
             "AudioPeak": GLib.Variant("d", 0.0),
             "HudStyle": GLib.Variant("s", ""),
+            # 契约(2026-10-01)加的三个"最近错误"属性:粘性,永不自动清除,
+            # 供设置窗口的诊断页读取 —— 胶囊那时候早就没了。
+            "LastError": GLib.Variant("s", ""),
+            "LastErrorDetail": GLib.Variant("s", ""),
+            "LastErrorTime": GLib.Variant("x", 0),
         }
 
     # ---- lifecycle ----
@@ -137,6 +143,23 @@ class DictationPublisher:
                 "AudioPeak": self._properties["AudioPeak"],
             }
         )
+
+    def set_last_error(self, headline: str, detail: str = "") -> None:
+        """记录一次失败。
+
+        契约 C16:每次失败都要设置这三个属性,标题重复也要更新时间;顺序是
+        Detail → Time → Error,这样读到 LastError 变化的客户端拿到的是一致的
+        三元组。
+        """
+        self._set_property("LastErrorDetail", GLib.Variant("s", detail[:200]))
+        self._set_property(
+            "LastErrorTime", GLib.Variant("x", int(time.time() * 1_000_000))
+        )
+        self._set_property("LastError", GLib.Variant("s", headline[:200]))
+
+    def _set_property(self, name: str, value: GLib.Variant) -> None:
+        self._properties[name] = value
+        self._emit({name: value})
 
     def set_hud_style(self, nick: str) -> None:
         if self._properties["HudStyle"].get_string() == nick:

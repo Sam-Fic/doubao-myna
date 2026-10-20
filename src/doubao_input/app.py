@@ -172,6 +172,22 @@ class DoubaoInputApp(Gtk.Application):
     def _hud_status(self) -> str:
         return self._hud.renderer_status() if self._hud is not None else "未启用"
 
+    def _last_error(self) -> str:
+        """诊断页显示的最近错误(标题 + 本地时间)。"""
+        if self._hud is None:
+            return "无"
+        headline, _detail, micros = self._hud.last_error()
+        if not headline:
+            return "无"
+        if micros:
+            stamp = time.strftime("%m-%d %H:%M", time.localtime(micros / 1_000_000))
+            return f"{headline}（{stamp}）"
+        return headline
+
+    def desktop_shortcut_conflicts(self, accelerator: str) -> list[tuple[str, bool]]:
+        """该快捷键被谁占了:[(占用者, 是否桌面保留)]。"""
+        return self._shortcut.conflicts(accelerator)
+
     def set_inject_shift(self, enabled: bool) -> None:
         """控制窗口的粘贴方式开关(Ctrl+Shift+V / Ctrl+V)。"""
         self._inject_shift = bool(enabled)
@@ -381,6 +397,8 @@ class DoubaoInputApp(Gtk.Application):
             sounds=self._sounds.enabled,
             sounds_supported=self._sounds.available,
             on_sounds_changed=self.set_sounds,
+            on_desktop_shortcut_conflicts=self.desktop_shortcut_conflicts,
+            last_error=self._last_error,
         )
 
         # ---- Initial state: cached params? ----

@@ -106,6 +106,8 @@ class ControlWindow:
         sounds: bool = True,
         sounds_supported: bool = False,
         on_sounds_changed: Optional[Callable[[bool], None]] = None,
+        on_desktop_shortcut_conflicts: Optional[Callable[[str], Any]] = None,
+        last_error: Optional[Callable[[], str]] = None,
     ) -> None:
         self._app_state = app_state
         self._on_login = on_login_clicked
@@ -136,6 +138,9 @@ class ControlWindow:
         self._sounds = sounds
         self._sounds_supported = sounds_supported
         self._on_sounds_changed = on_sounds_changed
+        self._on_desktop_shortcut_conflicts = on_desktop_shortcut_conflicts
+        self._last_error = last_error
+        self._last_error_label: Optional[Gtk.Label] = None
         self._shortcut_keycap: Optional[Gtk.Label] = None
         self._shortcut_button: Optional[Gtk.Button] = None
         self._shortcut_row = None
@@ -155,6 +160,8 @@ class ControlWindow:
         self._ensure_window()
         self._window.present()
         self._refresh_status()
+        self._refresh_hud_status()
+        self._refresh_last_error()
 
     def hide(self) -> None:
         if self._window:
@@ -388,6 +395,14 @@ class ControlWindow:
 
         status_group = Adw.PreferencesGroup(title="状态")
         diag.add(status_group)
+        last_error_row = Adw.ActionRow(title="最近错误")
+        self._last_error_label = Gtk.Label()
+        self._last_error_label.set_wrap(True)
+        self._last_error_label.set_justify(Gtk.Justification.LEFT)
+        last_error_row.add_suffix(self._last_error_label)
+        status_group.add(last_error_row)
+        self._refresh_last_error()
+
         hud_status_row = Adw.ActionRow(title="悬浮窗")
         self._hud_status_label = Gtk.Label()
         self._hud_status_label.set_wrap(True)
@@ -582,8 +597,48 @@ class ControlWindow:
 
         accelerator = Gtk.accelerator_name(keyval, mods)
         win.close()
+        self._offer_shortcut(accelerator)
+        return True
+
+    def _offer_shortcut(self, accelerator: str) -> None:
+        """写键前先查冲突(Myna:桌面保留键要提示换一个,别人的自定义键可替换)。"""
+        conflicts: list = []
+        if self._on_desktop_shortcut_conflicts is not None:
+            try:
+                conflicts = self._on_desktop_shortcut_conflicts(accelerator) or []
+            except Exception as e:
+                logger.warning("conflict check failed: %s", e)
+        if not conflicts:
+            self._apply_shortcut(accelerator)
+            return
+
+        owner, reserved = conflicts[0]
+        if reserved:
+            self.toast(f"{accelerator} 被桌面保留({owner}),换一个吧")
+            return
+        if not _HAS_ADW or self._window is None:
+            self.toast(f"{accelerator} 已被「{owner}」占用")
+            return
+
+        dialog = Adw.AlertDialog.new(
+            "替换快捷键?",
+            f"{accelerator} 已被「{owner}」使用。替换会把它从那里移除。",
+        )
+        dialog.add_response("cancel", "取消")
+        dialog.add_response("replace", "替换")
+        dialog.set_response_appearance("replace", Adw.ResponseAppearance.DESTRUCTIVE)
+        dialog.set_default_response("cancel")
+        dialog.set_close_response("cancel")
+        dialog.connect("response", self._on_replace_response, accelerator)
+        dialog.present(self._window)
+
+    def _on_replace_response(self, _dialog, response: str, accelerator: str) -> None:
+        if response == "replace":
+            self._apply_shortcut(accelerator)
+
+    def _apply_shortcut(self, accelerator: str) -> None:
         if self._on_desktop_shortcut_changed is None:
-            return True
+            return
         ok, error = self._on_desktop_shortcut_changed(accelerator)
         if ok:
             self._desktop_shortcut = accelerator
@@ -591,7 +646,6 @@ class ControlWindow:
             self.toast(f"快捷键已设为 {accelerator}")
         else:
             self.toast(f"快捷键设置失败:{error}")
-        return True
 
     @staticmethod
     def _is_function_key(keyval: int) -> bool:
@@ -642,6 +696,19 @@ class ControlWindow:
         self._hud_style = value
         if self._on_hud_style_changed is not None:
             self._on_hud_style_changed(value)
+
+    def _refresh_last_error(self) -> None:
+        if self._last_error_label is None:
+            return
+        if self._last_error is None:
+            self._last_error_label.set_text("")
+            return
+        try:
+            self._last_error_label.set_markup(
+                f"<small>{GLib.markup_escape_text(self._last_error())}</small>"
+            )
+        except Exception as e:
+            self._last_error_label.set_text(f"未知 ({e})")
 
     def _refresh_hud_status(self) -> None:
         if not self._hud_status_label:

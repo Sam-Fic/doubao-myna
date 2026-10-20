@@ -24,8 +24,10 @@
 | 热插拔 | — | evdev 每秒重扫 `/dev/input/event*` | ✅ |
 
 剩余差距:
-- ❌ 未做**冲突检测**(Myna 会检查桌面保留键与被占用的自定义快捷键,并弹「Replace Shortcut?」)。
-- ❌ 未做**桌面保留键提示**与屏幕阅读器播报(捕获时 announce)。
+- ❌ 未做**屏幕阅读器播报**(Myna 捕获按键时会 announce 状态与拒绝原因)。
+
+> **冲突检测已做**:写键前查 5 个 GNOME schema + 其它自定义快捷键;桌面保留键
+> (`-static`)提示"换一个",别人的自定义键弹 `Adw.AlertDialog`「替换?」(Replace 为 destructive)。
 
 > **关于「焦点离开时结束」**:Myna 靠 IBus 精确知道目标字段;本项目走剪贴板,只能问桌面,
 > 而 Wayland 下第三方进程**读不到别的窗口的焦点**(GNOME Shell 的 `Eval` 默认关闭)。
@@ -104,7 +106,7 @@
 
 | 设计点 | Myna | 本项目 | 状态 |
 |---|---|---|---|
-| 最近错误(LastError/Detail/Time) | D-Bus 三属性 + 诊断页展示 | ❌ 无错误历史 | ❌ |
+| 最近错误(LastError/Detail/Time) | D-Bus 三属性 + 诊断页展示 | 已实现:契约顺序 Detail→Time→Error,诊断页显示「标题(时间)」 | ✅ |
 | 丢包计数 | `AudioDroppedNotActive` | ❌ 无 | ❌ |
 | 麦克风健康度 | 每次会话上报 offset / noise floor / speech 电平 | 只有「检查麦克风」手动按钮(输出 peak/avg) | 🟡 |
 | 日志开关 | `--verbose` 等 | 只有 stderr INFO,改 DEBUG 要动源码 | ❌ |
@@ -119,10 +121,10 @@
 3. **桌面通知兜底**:渲染器不可用时用 `Gio.Notification` 显示状态(文案不含转写内容,对齐 Myna 的 N8)。
 
 **P1(补齐 Myna 的交互)**
-4. 快捷键**冲突检测**:写键前检查桌面保留键与已占用的自定义快捷键,弹「替换?」对话框。
+4. ~~快捷键冲突检测~~ ✅ 已做(桌面保留键提示换一个,自定义键弹「替换?」)。
 5. ~~提示音~~ ✅ 已做(`sounds` 开关,系统 freedesktop 事件音)。
 6. ~~取消~~ ✅ 已做(ESC 取消,键可配)。
-7. **错误历史**:记最近一次错误(时间 + 文案),并按需发布 D-Bus 的 `LastError*` 三属性。
+7. ~~错误历史~~ ✅ 已做(D-Bus `LastError*` 三属性 + 诊断页显示)。
 
 **P2(完整度)**
 8. Onboarding 向导(3 步),至少覆盖"登录豆包 + 设置快捷键 + 装 Myna 胶囊"。

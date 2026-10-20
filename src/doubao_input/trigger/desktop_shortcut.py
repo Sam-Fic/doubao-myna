@@ -37,6 +37,16 @@ ENTRY_NAME = "Doubao Dictation"
 
 XFCE_CHANNEL = "xfce4-keyboard-shortcuts"
 
+#: 桌面自带的快捷键 schema(GNOME)。Myna 同样检查这五个,并把以 `-static`
+#: 结尾的键视为"桌面保留"(gsd 登录时抓取,不能让出)。
+DESKTOP_SCHEMAS = [
+    ("org.gnome.desktop.wm.keybindings", "窗口管理"),
+    ("org.gnome.mutter.keybindings", "Mutter"),
+    ("org.gnome.mutter.wayland.keybindings", "Mutter(Wayland)"),
+    ("org.gnome.shell.keybindings", "Shell"),
+    ("org.gnome.settings-daemon.plugins.media-keys", "媒体键"),
+]
+
 
 class DesktopShortcut:
     """Read/write the desktop's custom keyboard shortcut for dictation."""
@@ -87,6 +97,56 @@ class DesktopShortcut:
                 errors.append("xfconf-query 写入失败")
 
         return ok, "" if ok else "、".join(errors)
+
+    def conflicts(self, accelerator: str) -> list[tuple[str, bool]]:
+        """谁已经占了 accelerator。
+
+        返回 [(占用者说明, 是否桌面保留)]。桌面保留键不能让出(Myna 会直接
+        提示"换一个");别的用户自定义快捷键可以让出(Myna 弹「替换?」)。
+        """
+        found: list[tuple[str, bool]] = []
+        if not accelerator:
+            return found
+
+        for schema, label in DESKTOP_SCHEMAS:
+            try:
+                settings = Gio.Settings.new(schema)
+            except Exception:
+                continue
+            for key in settings.list_keys():
+                if self._key_uses(settings, key, accelerator):
+                    found.append((f"{label} · {key}", key.endswith("-static")))
+
+        # 其它自定义快捷键(不含我们自己那一条)
+        try:
+            settings = Gio.Settings.new(GNOME_SCHEMA)
+            for path in settings.get_strv("custom-keybindings"):
+                if path == GNOME_PATH:
+                    continue
+                try:
+                    entry = Gio.Settings.new_with_path(RELOCATABLE_SCHEMA, path)
+                except Exception:
+                    continue
+                if entry.get_string("binding") == accelerator:
+                    found.append((entry.get_string("name") or path.rstrip("/").split("/")[-1], False))
+        except Exception:
+            pass
+        return found
+
+    @staticmethod
+    def _key_uses(settings: "Gio.Settings", key: str, accelerator: str) -> bool:
+        try:
+            value = settings.get_value(key)
+        except Exception:
+            return False
+        try:
+            if value.get_type_string() == "as":
+                return accelerator in value.unpack()
+            if value.get_type_string() == "s":
+                return value.unpack() == accelerator
+        except Exception:
+            return False
+        return False
 
     def clear(self) -> None:
         try:
