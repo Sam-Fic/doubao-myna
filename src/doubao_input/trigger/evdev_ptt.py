@@ -27,8 +27,12 @@ logger = logging.getLogger(__name__)
 
 EV_KEY = 0x01
 KEY_RIGHTCTRL = 97  # linux/input-event-codes.h
-# struct input_event on 64-bit: long long tv_sec; long tv_usec; unsigned short type; unsigned short code; int value;
-_EVENT_SIZE = 24
+# struct input_event = struct timeval + u16 type + u16 code + s32 value。
+# timeval 的大小跟平台有关(64 位是两个 long = 16 字节,32 位是 8 字节),
+# 所以布局和单事件大小都按运行平台推导,不能写死。
+_TIME_SIZE = struct.calcsize("l")  # tv_sec 和 tv_usec 各一个 long
+_EVENT_SIZE = _TIME_SIZE * 2 + 2 + 2 + 4
+_EVENT_FORMAT = ("ll" if _TIME_SIZE == 8 else "ii") + "HHi"
 
 
 def resolve_key_code(name: str) -> int:
@@ -173,8 +177,14 @@ class EvdevPtt:
                         data = os.read(fd, _EVENT_SIZE * 16)
                     except OSError:
                         continue
-                    buf = data
-                    self._dispatch(buf, GLib.idle_add)
+                    # read 可能刚好把最后一个事件切成两半:留下的半截
+                    # 要接在下一轮 read 前面,不能整段覆盖丢弃。
+                    buf += data
+                    cut = len(buf) - (len(buf) % _EVENT_SIZE)
+                    if cut <= 0:
+                        continue
+                    self._dispatch(buf[:cut], GLib.idle_add)
+                    buf = buf[cut:]
         except Exception as e:  # pragma: no cover
             logger.exception("EvdevPtt crashed: %s", e)
             self._notify_error(f"evdev 监听崩溃: {e}")
@@ -188,7 +198,7 @@ class EvdevPtt:
         # per real keypress.
         while i + _EVENT_SIZE <= n:
             tv_sec, tv_usec, ev_type, ev_code, ev_value = struct.unpack(
-                "llHHi", data[i : i + _EVENT_SIZE]
+                _EVENT_FORMAT, data[i : i + _EVENT_SIZE]
             )
             i += _EVENT_SIZE
             if ev_type != EV_KEY:

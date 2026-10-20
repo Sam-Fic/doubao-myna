@@ -38,10 +38,16 @@ logger = logging.getLogger(__name__)
 class ASRClient:
     """WebSocket client for Doubao's streaming ASR service."""
 
+    # 未连接时缓冲的音频上限(字节)。16000Hz*16bit*1ch = 32KB/s,
+    # 64MB ≈ 34 分钟,超过就丢最旧的:连接一直建不起来时
+    # 不能让内存无限涨(长时间挂着 app 的情况)。
+    MAX_PENDING_BYTES = 64 * 1024 * 1024
+
     def __init__(self) -> None:
         self._ws: Any | None = None
         self._connected = False
         self._pending_audio: list[bytes] = []
+        self._pending_bytes = 0
         self._lock = threading.Lock()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
@@ -136,12 +142,23 @@ class ASRClient:
                         self._ws.send(data), self._loop
                     )
             else:
+                if len(data) > self.MAX_PENDING_BYTES:
+                    logger.warning(
+                        "audio chunk too large (%d bytes), dropped", len(data)
+                    )
+                    return
                 self._pending_audio.append(data)
+                self._pending_bytes += len(data)
+                # 超上限就丢最旧的,内存有界
+                while self._pending_bytes > self.MAX_PENDING_BYTES:
+                    dropped = self._pending_audio.pop(0)
+                    self._pending_bytes -= len(dropped)
 
     def finish_sending(self) -> None:
         """Signal no more audio; keep WS open for final results."""
         with self._lock:
             self._pending_audio.clear()
+            self._pending_bytes = 0
             self._connected = False
         logger.info("Finished sending audio, waiting for server response")
 
@@ -150,6 +167,7 @@ class ASRClient:
         self._connected = False
         with self._lock:
             self._pending_audio.clear()
+            self._pending_bytes = 0
         if self._ws and self._loop and self._loop.is_running():
             asyncio.run_coroutine_threadsafe(
                 self._ws.close(1000, "1000-"), self._loop
@@ -161,6 +179,7 @@ class ASRClient:
         with self._lock:
             buffered = list(self._pending_audio)
             self._pending_audio.clear()
+            self._pending_bytes = 0
         if buffered:
             logger.info("Flushing %d buffered audio chunks", len(buffered))
             for chunk in buffered:
