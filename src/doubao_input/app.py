@@ -702,26 +702,24 @@ class DoubaoInputApp(Gtk.Application):
         # Myna 胶囊也要先消失,否则注入的 Ctrl+V 会落到我们的窗口上。
         if self._hud is not None:
             self._hud.set_state(IDLE, "")
-        # CRITICAL: hide BOTH our windows so the injected Ctrl+V goes
-        # to whatever input field the user had focused before pressing
-        # right-Ctrl, not to our own widgets. On Wayland, focus
-        # follows the compositor; the only reliable way to release
-        # focus is to take the window off the screen.
+        # 胶囊(录音指示器)先消失:会话结束了,它不该还在屏幕上。
         if self._overlay is not None and self._overlay._window:
             try:
                 self._overlay._window.set_visible(False)
             except Exception:
                 pass
-        # Track whether we had to forcibly hide the control window so
-        # we can restore it after the paste.
-        control_was_visible = False
+        # 控制窗口**只有真的抢到焦点时才需要躲**:注入的 Ctrl+V 会落到
+        # 当时有焦点的窗口上,而我们没焦点时它本来就收不到。
+        # (以前是无条件隐藏 + 600ms 后恢复,于是每次粘贴完设置窗口都会
+        #  闪一下 —— 即使它根本没焦点。)
+        control_was_active = False
         if self._control and self._control._window:
             try:
-                control_was_visible = self._control._window.get_visible()
-                if control_was_visible:
+                control_was_active = self._control._window.is_active()
+                if control_was_active:
                     self._control._window.set_visible(False)
             except Exception:
-                control_was_visible = False
+                control_was_active = False
 
         def do_inject():
             logger.info("_do_paste: now injecting %r", text[:30])
@@ -732,10 +730,10 @@ class DoubaoInputApp(Gtk.Application):
                 self._indicator_notice("粘贴失败,文字仍在剪贴板,可手动 Ctrl+Shift+V")
                 if self._control is not None:
                     self._control.toast("粘贴失败,文字仍在剪贴板")
-            # Restore control window
+            # 只有刚才被我们藏起来的窗口才恢复(见上文 is_active 判断)。
             def restore_control():
                 if (
-                    control_was_visible
+                    control_was_active
                     and self._control
                     and self._control._window
                 ):

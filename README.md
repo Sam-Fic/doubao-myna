@@ -288,6 +288,7 @@ systemctl --user enable --now doubao-input.service
 - 命令行支持 `-v/--verbose`、`--quiet`、`--show`（后者让 `.desktop` 的 show-control action 真正生效）。
 - 内置悬浮窗跟随系统「减弱动效」设置。
 - 新增隐私诊断报告（刷新 / 复制，对齐 Myna 的“不含音频、识别文本、文件路径”承诺）。
+- 修复：每次粘贴完成后设置窗口会闪一下（无条件隐藏+恢复 → 改为仅在自己抢到焦点时才躲）。
 - 新增首次运行向导（欢迎 → 登录 → 快捷键 → Myna 胶囊）与设置窗口主菜单（运行向导 / 关于）。
 - 新增 `--log-file` 文件日志；内置悬浮窗支持高对比度。
 - 新增 `docs/myna-parity.md`，逐项记录与 Myna 体验设计的对齐情况。

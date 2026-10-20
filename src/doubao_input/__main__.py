@@ -8,7 +8,7 @@ import sys
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import GLib  # noqa: E402
+from gi.repository import GLib, GLibUnix  # noqa: E402
 
 from doubao_input.app import DoubaoInputApp
 
@@ -33,7 +33,7 @@ def main() -> int:
         return GLib.SOURCE_REMOVE
 
     for number in (signal.SIGTERM, signal.SIGINT):
-        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, number, _terminate, number)
+        GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, number, _terminate, number)
 
     return app.run(sys.argv)
 
