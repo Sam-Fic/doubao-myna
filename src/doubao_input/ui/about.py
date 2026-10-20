@@ -107,13 +107,6 @@ CREDIT_SECTIONS = [
         f"doubao-input-for-linux 贡献者(wurong98/doubao-input-for-linux · MIT · {CONTRIBUTORS_SNAPSHOT} 快照)",
         ["wurong98"],
     ),
-    (
-        "doubao-murmur(豆包 ASR 逆向 · MIT)",
-        [
-            "上游仓库地址未公开(NOTICE 里记的是占位符),只能按 NOTICE 的署名致谢。",
-            "如果你知道它的实际地址,欢迎告诉我们补上名单。",
-        ],
-    ),
 ]
 
 #: Acknowledgements 页:运行时依赖
@@ -149,7 +142,7 @@ LEGAL_SECTIONS = [
     ),
     (
         "doubao-murmur(src/doubao_input/doubao/ 下的 ASR 逻辑)",
-        "© 2024 doubao-murmur contributors — 上游仓库地址未公开,见 NOTICE",
+        "© 2024 doubao-murmur contributors — 署名详见仓库 NOTICE",
         "MIT_X11",
         None,
     ),

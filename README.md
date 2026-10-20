@@ -348,7 +348,6 @@ systemctl --user enable --now doubao-input.service
 ## 致谢
 ### 上游项目
 - **[Myna](https://github.com/canonical/myna)** (AGPL-3.0-or-later，**© 2025-2026 Canonical Ltd.**，Myna 自己的 About 只署 Canonical)：应用图标、`myna-hud` 渲染器、GNOME Shell 扩展与设置窗口风格均来自这里；本项目通过本地编译与 D-Bus 属性集成，未链接其代码。
-- **[doubao-murmur](https://github.com/yourname/doubao-murmur)** (MIT)：豆包逆向逻辑（登录、WebSocket ASR、音频采集）的来源。仓库地址未公开（NOTICE 中为占位符），欢迎知情者补充。
 - **[wurong98/doubao-input-for-linux](https://github.com/wurong98/doubao-input-for-linux)** (MIT)：上游项目，提供 Push-to-Hold 交互、evdev 触发、剪贴板 + uinput 注入及 WebKit 登录窗口。
 - **豆包 (Doubao)**：底层 Web 版流式 ASR 服务（本项目为非官方逆向实现，与字节跳动无关联）。
 
@@ -358,7 +357,8 @@ systemctl --user enable --now doubao-input.service
 | 本 fork（Sam-Fic/doubao-myna） | Sam-Fic、wurong98（上游历史） |
 | [canonical/myna](https://github.com/canonical/myna) | **Canonical Ltd.**（© 2025-2026，Myna 的 About 只署 Canonical）、quine00、3v1n0、jibel、weblate、juanruitina、Matthaiks、paul-geoghegan、IhorHordiichuk、ogres、mz2、github-actions[bot]、Copilot、dependabot[bot] |
 | [wurong98/doubao-input-for-linux](https://github.com/wurong98/doubao-input-for-linux) | wurong98 |
-| doubao-murmur | 上游未公开，暂缺 |
+
+（ASR 逆向逻辑的来源 doubao-murmur 署名见仓库 NOTICE；其仓库未公开，故不列于此。）
 
 ### 运行时依赖
 GTK 4 / libadwaita、PyGObject、wl-clipboard、evdev / uinput、websockets、sounddevice / PortAudio、canberra-gtk-play 与 freedesktop 声音主题、GNOME Shell（myna-shell 扩展）。
