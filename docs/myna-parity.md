@@ -90,7 +90,7 @@
 |---|---|---|---|
 | 开始/结束/错误提示音 | 有(`sounds` + `sound-set`) | 有开关(`ui/sounds.py`),播系统 freedesktop 事件音,不搬运 Myna 的音频资源 | 🟡 音色不可选 |
 | 桌面通知兜底 | 有 | 有(`ui/notifier.py`) | ✅ |
-| 减弱动效 | 跟随 `gtk-interface-reduced-motion` | Myna 胶囊自动跟随;**内置悬浮窗**的呼吸/流光不跟随 | 🟡 |
+| 减弱动效 | 跟随 `gtk-interface-reduced-motion` | Myna 胶囊自动跟随;内置悬浮窗也跟随(`ui/overlay.py`,只读运行时属性,不碰 a11y schema) | ✅ |
 | 高对比 / 深浅色 | 跟随 Adw.StyleManager | 胶囊跟随;内置悬浮窗是写死的暗色胶囊 | 🟡 |
 | 屏幕阅读器播报 | 状态变化可感知、捕获按键 announce | ❌ 无 | ❌ |
 
@@ -109,7 +109,7 @@
 | 最近错误(LastError/Detail/Time) | D-Bus 三属性 + 诊断页展示 | 已实现:契约顺序 Detail→Time→Error,诊断页显示「标题(时间)」 | ✅ |
 | 丢包计数 | `AudioDroppedNotActive` | ❌ 无 | ❌ |
 | 麦克风健康度 | 每次会话上报 offset / noise floor / speech 电平 | 只有「检查麦克风」手动按钮(输出 peak/avg) | 🟡 |
-| 日志开关 | `--verbose` 等 | 只有 stderr INFO,改 DEBUG 要动源码 | ❌ |
+| 日志开关 | `--verbose` 等 | `-v / --verbose`、`--quiet`(`do_command_line`);仍无文件日志 | 🟡 |
 
 ---
 

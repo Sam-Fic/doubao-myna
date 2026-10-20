@@ -19,7 +19,7 @@ import time
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import GLib, Gtk  # type: ignore
+from gi.repository import GLib, Gio, Gtk  # type: ignore
 
 from doubao_input.doubao.app_state import AppState, LoginStatus, RecordingState
 from doubao_input.doubao.asr_client import ASRClient
@@ -71,7 +71,9 @@ class DoubaoInputApp(Gtk.Application):
     def __init__(self) -> None:
         super().__init__(
             application_id="com.doubao.Input",
-            flags=Gio_APPLICATION_NON_UNIQUE(),
+            # HANDLES_COMMAND_LINE:让 `--verbose` / `--quiet` / `--show` 真正生效
+            # (.desktop 的 show-control action 以前是死参数)。
+            flags=Gio_APPLICATION_NON_UNIQUE() | Gio.ApplicationFlags.HANDLES_COMMAND_LINE,
         )
         # PyGObject does NOT dispatch do_activate() automatically in all
         # versions — connect the signal explicitly so the first run
@@ -107,6 +109,26 @@ class DoubaoInputApp(Gtk.Application):
         self._session_focus: str | None = None
 
     # ---- Gtk.Application hooks (signal handlers, not do_*) ----
+
+    def do_command_line(self, command_line) -> int:
+        """命令行开关:-v/--verbose、--quiet、--show(唤起控制窗口)。"""
+        level = logging.INFO
+        show = False
+        for argument in command_line.get_arguments()[1:]:
+            if argument in ("--verbose", "-v"):
+                level = logging.DEBUG
+            elif argument == "--quiet":
+                level = logging.WARNING
+            elif argument == "--show":
+                show = True
+            else:
+                logger.info("ignoring unknown argument: %s", argument)
+        logging.getLogger().setLevel(level)
+        logger.debug("command line level set to %s", logging.getLevelName(level))
+        self.activate()
+        if show and self._control is not None:
+            self._control.show()
+        return 0
 
     def _on_activate(self, _app) -> None:
         logger.info("on_activate: setup_done=%s", self._setup_done)

@@ -219,7 +219,15 @@ src/doubao_input/
 - `P6_asr.py`：验证 WebSocket 连接与 ASR 识别。
 
 ### 日志调试
-默认日志级别为 `INFO`。如需排查底层设备扫描或网络细节，请将 `logging.basicConfig` 级别修改为 `DEBUG`。
+默认日志级别为 `INFO`，输出到 stderr：
+
+```bash
+./start.sh --verbose        # 或 -v，打印 DEBUG（evdev 设备扫描、D-Bus 细节等）
+./start.sh --quiet          # 只看 WARNING 及以上
+./start.sh --show           # 唤起控制窗口（.desktop 的 show-control action）
+```
+
+暂未提供文件日志；需要落盘可自行重定向（`./start.sh -v 2> ~/doubao-input.log`）。
 
 ---
 
@@ -263,6 +271,8 @@ systemctl --user enable --now doubao-input.service
 - 新增桌面通知兜底：胶囊不可用时状态走单条原地替换的通知（文案不含识别文本）。
 - 新增提示音（开始 / 结束 / 错误，走系统事件音）与 ESC 取消。
 - 新增快捷键冲突检测（桌面保留键提示更换，自定义键弹「替换?」）与最近错误记录（诊断页 + D-Bus `LastError*`）。
+- 命令行支持 `-v/--verbose`、`--quiet`、`--show`（后者让 `.desktop` 的 show-control action 真正生效）。
+- 内置悬浮窗跟随系统「减弱动效」设置。
 - 新增 `docs/myna-parity.md`，逐项记录与 Myna 体验设计的对齐情况。
 
 ### v1.0.2 (2026-06-21)

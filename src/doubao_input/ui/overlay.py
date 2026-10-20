@@ -83,6 +83,19 @@ class Overlay:
         self._status_text: str = ""
         self._text: str = ""
         self._visible: bool = False
+        # 跟随系统的"减弱动效"(Myna 同样只读运行时属性,不直接碰 a11y schema ——
+        # 缺 schema 会让进程 abort)。开启时呼吸/流光全关,只留固定亮度。
+        self._reduced_motion = self._prefers_reduced_motion()
+
+    @staticmethod
+    def _prefers_reduced_motion() -> bool:
+        try:
+            settings = Gtk.Settings.get_default()
+            if settings is not None:
+                return settings.get_property("gtk-enable-animations") is False
+        except Exception:
+            pass
+        return False
 
     # ---- public API ----
 
@@ -276,6 +289,14 @@ class Overlay:
             self._ticker_src = None
             return False
         now = time.monotonic()
+        if self._reduced_motion:
+            # 减弱动效:不呼吸、不流光,固定亮度(内容照常刷新)。
+            try:
+                self._window.set_opacity(0.95)
+            except Exception:
+                pass
+            self._upload_wave_texture()
+            return True
         phase = (now - self._t0) / BREATH_PERIOD_S * 2.0 * math.pi
         b01 = 0.5 * (1.0 + math.sin(phase))
         opacity = (OPACITY_BREATH_MIN
