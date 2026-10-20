@@ -47,6 +47,7 @@ class TranscriptionManager:
         self.on_overlay_hide = None  # () -> None
         self.on_overlay_update = None  # (text: str) -> None
         self.on_paste = None  # (text: str) -> None
+        self.on_empty_result = None  # () -> None,一段话说完但没识别到内容
         self.on_cancel_enabled_changed = None  # (enabled: bool) -> None
 
         self._wire_asr_callbacks()
@@ -211,6 +212,9 @@ class TranscriptionManager:
         logger.info("Completing transcription: '%s'", text[:50])
         if text and self.on_paste:
             self.on_paste(text)
+        elif not text and self.on_empty_result:
+            # Myna 把"没听到"当成可恢复的 notice(而不是错误),这里同样处理。
+            self.on_empty_result()
         self._reset_to_idle()
 
     def _reset_to_idle(self) -> bool:

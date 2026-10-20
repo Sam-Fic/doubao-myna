@@ -12,7 +12,16 @@ from __future__ import annotations
 import json
 import logging
 
-from doubao_input.doubao.config import HUD_ENABLED, INJECT_USE_SHIFT, get_config_dir
+from doubao_input.doubao.config import (
+    DESKTOP_SHORTCUT,
+    HUD_ENABLED,
+    HUD_STYLE,
+    INJECT_USE_SHIFT,
+    SILENCE_TIMEOUT_SECS,
+    TRIGGER_KEY_NAME,
+    TRIGGER_MODE,
+    get_config_dir,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,3 +82,48 @@ def load_inject_shift() -> bool:
 
 def save_inject_shift(enabled: bool) -> None:
     set_value("inject_shift", bool(enabled))
+
+
+def load_trigger_key() -> str:
+    return str(get("trigger_key", TRIGGER_KEY_NAME))
+
+
+def save_trigger_key(name: str) -> None:
+    set_value("trigger_key", str(name))
+
+
+def load_trigger_mode() -> str:
+    mode = str(get("trigger_mode", TRIGGER_MODE)).lower()
+    return "toggle" if mode == "toggle" else "hold"
+
+
+def save_trigger_mode(mode: str) -> None:
+    set_value("trigger_mode", "toggle" if mode == "toggle" else "hold")
+
+
+def load_silence_timeout() -> int:
+    try:
+        value = int(get("silence_timeout", SILENCE_TIMEOUT_SECS))
+    except (TypeError, ValueError):
+        value = SILENCE_TIMEOUT_SECS
+    return max(0, min(600, value))
+
+
+def save_silence_timeout(seconds: int) -> None:
+    set_value("silence_timeout", max(0, min(600, int(seconds))))
+
+
+def load_desktop_shortcut() -> str:
+    return str(get("desktop_shortcut", DESKTOP_SHORTCUT))
+
+
+def save_desktop_shortcut(accelerator: str) -> None:
+    set_value("desktop_shortcut", str(accelerator))
+
+
+def load_hud_style() -> str:
+    return str(get("hud_style", HUD_STYLE))
+
+
+def save_hud_style(nick: str) -> None:
+    set_value("hud_style", str(nick))

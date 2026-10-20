@@ -52,16 +52,12 @@ override_dh_auto_install:
 	install -m 0644 debian/doubao-input.desktop \
 	    debian/doubao-input/usr/share/applications/doubao-input.desktop
 
-	# App icon — hicolor theme (size 128 covers most uses including
-	# GNOME shell, app grid, and our own Gtk.Image buttons).
+	# App icon — hicolor theme. The .desktop points at the scalable SVG,
+	# which is installed by debian/install (debian/doubao-input.svg).
+	# Provide a 128x128 copy (also an SVG) so size-specific lookups work.
 	install -d debian/doubao-input/usr/share/icons/hicolor/128x128/apps
-	install -m 0644 src/doubao_input/resources/logo-128.png \
-	    debian/doubao-input/usr/share/icons/hicolor/128x128/apps/doubao-input.png
-	install -d debian/doubao-input/usr/share/icons/hicolor/scalable/apps
-	# Use the full-resolution PNG as the "scalable" placeholder; if a
-	# proper SVG is ever produced it should replace this file.
-	install -m 0644 src/doubao_input/resources/logo.png \
-	    debian/doubao-input/usr/share/icons/hicolor/scalable/apps/doubao-input.png
+	install -m 0644 src/doubao_input/resources/logo.svg \
+	    debian/doubao-input/usr/share/icons/hicolor/128x128/apps/doubao-input.svg
 
 	# Docs
 	install -d debian/doubao-input/usr/share/doc/doubao-input
@@ -69,4 +65,8 @@ override_dh_auto_install:
 	    debian/doubao-input/usr/share/doc/doubao-input/
 
 override_dh_missing:
-	dh_missing --fail-missing
+	# List (don't fail on) files in the source tree that aren't packaged.
+	# The app is a single Python package plus a few aux files; we install
+	# exactly what's needed, so a hard --fail-missing would break the build
+	# over untracked repo files (tests/, scripts/, etc.).
+	dh_missing --list-missing

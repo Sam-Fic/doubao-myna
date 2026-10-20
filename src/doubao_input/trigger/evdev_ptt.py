@@ -31,12 +31,31 @@ KEY_RIGHTCTRL = 97  # linux/input-event-codes.h
 _EVENT_SIZE = 24
 
 
+def resolve_key_code(name: str) -> int:
+    """evdev 键名(KEY_RIGHTCTRL / KEY_F13 / …)→ 键码;查不到就退回右 Ctrl。"""
+    try:
+        import evdev  # type: ignore
+
+        codes = getattr(evdev.ecodes, "KEY", {})
+        code = codes.get(name)
+        if isinstance(code, int):
+            return code
+        # 有些版本 KEY_* 直接挂在 ecodes 上
+        code = getattr(evdev.ecodes, name, None)
+        if isinstance(code, int):
+            return code
+    except Exception as e:
+        logger.warning("cannot resolve evdev key %r (%s), using KEY_RIGHTCTRL", name, e)
+    logger.warning("unknown evdev key %r, using KEY_RIGHTCTRL", name)
+    return KEY_RIGHTCTRL
+
+
 class EvdevPtt:
-    """Right-Ctrl push-to-talk listener.
+    """Physical-key push-to-talk listener(键可配,默认右 Ctrl)。
 
     Callbacks (all invoked on the GTK main thread):
-      on_press():   right-Ctrl pressed down
-      on_release(): right-Ctrl released
+      on_press():   the configured key went down
+      on_release(): the configured key went up
     """
 
     def __init__(
@@ -44,10 +63,13 @@ class EvdevPtt:
         on_press: Callable[[], None],
         on_release: Callable[[], None],
         on_error: Callable[[str], None] | None = None,
+        key_name: str = "KEY_RIGHTCTRL",
     ) -> None:
         self._on_press = on_press
         self._on_release = on_release
         self._on_error = on_error
+        self._key_name = key_name
+        self._key_code = resolve_key_code(key_name)
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
         self._fds: list[int] = []
@@ -81,7 +103,7 @@ class EvdevPtt:
     # ---- internals ----
 
     def _scan(self) -> bool:
-        """Open every /dev/input/event* that we can read AND that supports KEY_RIGHTCTRL."""
+        """Open every /dev/input/event* that we can read AND that has our key."""
         import evdev  # type: ignore
 
         self._close_fds()
@@ -92,7 +114,7 @@ class EvdevPtt:
             try:
                 dev = evdev.InputDevice(path)
                 caps = dev.capabilities()
-                if EV_KEY in caps and KEY_RIGHTCTRL in caps[EV_KEY]:
+                if EV_KEY in caps and self._key_code in caps[EV_KEY]:
                     fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
                     fds.append(fd)
                     paths.append(path)
@@ -164,7 +186,7 @@ class EvdevPtt:
                 "llHHi", data[i : i + _EVENT_SIZE]
             )
             i += _EVENT_SIZE
-            if ev_type != EV_KEY or ev_code != KEY_RIGHTCTRL:
+            if ev_type != EV_KEY or ev_code != self._key_code:
                 continue
             if ev_value == 1:  # press
                 try:

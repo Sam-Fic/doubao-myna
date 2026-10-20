@@ -17,15 +17,45 @@ Content:
 from __future__ import annotations
 
 import logging
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import GLib, Gtk  # type: ignore
+from gi.repository import GLib, Gdk, Gtk  # type: ignore
 
 from doubao_input.doubao.app_state import AppState, LoginStatus
-from doubao_input.doubao.config import INJECT_USE_SHIFT, get_params_path
+from doubao_input.doubao.config import (
+    HUD_STYLE,
+    INJECT_USE_SHIFT,
+    SILENCE_TIMEOUT_SECS,
+    TRIGGER_KEY_NAME,
+    TRIGGER_MODE,
+    get_params_path,
+)
+
+#: 设置窗口里可选的物理键(evdev 键名 → 显示名)
+TRIGGER_KEY_CHOICES = [
+    ("KEY_RIGHTCTRL", "右 Ctrl"),
+    ("KEY_LEFTCTRL", "左 Ctrl"),
+    ("KEY_RIGHTALT", "右 Alt"),
+    ("KEY_LEFTALT", "左 Alt"),
+    ("KEY_RIGHTSHIFT", "右 Shift"),
+    ("KEY_LEFTMETA", "左 Super"),
+    ("KEY_RIGHTMETA", "右 Super"),
+    ("KEY_SCROLLLOCK", "Scroll Lock"),
+    ("KEY_PAUSE", "Pause"),
+    ("KEY_F12", "F12"),
+    ("KEY_F13", "F13"),
+    ("KEY_COMPOSE", "Menu"),
+]
+
+#: 胶囊波形样式(Myna 的 hud-style 取值)
+HUD_STYLE_CHOICES = [
+    ("ribbon", "Ribbon(波浪)"),
+    ("bar", "Default(电平条)"),
+    ("vumeter", "VU meter"),
+]
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +88,17 @@ class ControlWindow:
         hud_status: Optional[Callable[[], str]] = None,
         inject_shift: bool = INJECT_USE_SHIFT,
         on_inject_shift_toggle: Optional[Callable[[bool], None]] = None,
+        trigger_key: str = TRIGGER_KEY_NAME,
+        on_trigger_key_changed: Optional[Callable[[str], None]] = None,
+        trigger_mode: str = TRIGGER_MODE,
+        on_trigger_mode_changed: Optional[Callable[[str], None]] = None,
+        silence_timeout: int = SILENCE_TIMEOUT_SECS,
+        on_silence_timeout_changed: Optional[Callable[[int], None]] = None,
+        hud_style: str = HUD_STYLE,
+        on_hud_style_changed: Optional[Callable[[str], None]] = None,
+        desktop_shortcut: str = "",
+        desktop_shortcut_supported: bool = False,
+        on_desktop_shortcut_changed: Optional[Callable[[str], Any]] = None,
     ) -> None:
         self._app_state = app_state
         self._on_login = on_login_clicked
@@ -70,6 +111,21 @@ class ControlWindow:
         self._hud_status = hud_status
         self._inject_shift = inject_shift
         self._on_inject_shift_toggle = on_inject_shift_toggle
+        self._trigger_key = trigger_key
+        self._on_trigger_key_changed = on_trigger_key_changed
+        self._trigger_mode = "toggle" if trigger_mode == "toggle" else "hold"
+        self._on_trigger_mode_changed = on_trigger_mode_changed
+        self._silence_timeout = silence_timeout
+        self._on_silence_timeout_changed = on_silence_timeout_changed
+        self._hud_style = hud_style
+        self._on_hud_style_changed = on_hud_style_changed
+        self._desktop_shortcut = desktop_shortcut
+        self._desktop_shortcut_supported = desktop_shortcut_supported
+        self._on_desktop_shortcut_changed = on_desktop_shortcut_changed
+        self._shortcut_keycap: Optional[Gtk.Label] = None
+        self._shortcut_button: Optional[Gtk.Button] = None
+        self._shortcut_row = None
+        self._capture_window = None
         self._window: Optional[Gtk.Window] = None
         self._status_label: Optional[Gtk.Label] = None
         self._account_row = None
@@ -165,21 +221,65 @@ class ControlWindow:
         input_page = Adw.PreferencesPage()
         input_page.set_title("输入")
         input_page.set_icon_name("input-keyboard-symbolic")
-        trigger_group = Adw.PreferencesGroup(title="触发")
+        trigger_group = Adw.PreferencesGroup(
+            title="触发",
+            description="桌面快捷键可以带 Super/Ctrl/Alt 组合键;物理键由 evdev 直接监听。",
+        )
         input_page.add(trigger_group)
 
-        trigger_group.add(
-            Adw.ActionRow(
-                title="按住说话",
-                subtitle="按住右 Ctrl 开始,松开即把识别结果粘贴到当前输入框",
+        # 桌面快捷键(Myna 的做法:绑到 D-Bus Toggle)
+        self._shortcut_row = Adw.ActionRow(
+            title="桌面快捷键",
+            subtitle="写进桌面的自定义快捷键,命令是 D-Bus Toggle",
+        )
+        self._shortcut_keycap = Gtk.Label()
+        self._shortcut_keycap.add_css_class("keycap")
+        self._shortcut_keycap.set_valign(Gtk.Align.CENTER)
+        self._shortcut_button = Gtk.Button()
+        self._shortcut_button.set_valign(Gtk.Align.CENTER)
+        self._shortcut_button.connect("clicked", self._on_shortcut_button)
+        self._shortcut_row.add_suffix(self._shortcut_keycap)
+        self._shortcut_row.add_suffix(self._shortcut_button)
+        trigger_group.add(self._shortcut_row)
+        self._refresh_shortcut_row()
+
+        # 物理键(evdev)
+        key_row = Adw.ComboRow(
+            title="物理键",
+            subtitle="直接监听 /dev/input/event*,不需要桌面配合",
+        )
+        key_model = Gtk.StringList.new([name for _, name in TRIGGER_KEY_CHOICES])
+        key_row.set_model(key_model)
+        for index, (value, _name) in enumerate(TRIGGER_KEY_CHOICES):
+            if value == self._trigger_key:
+                key_row.set_selected(index)
+        key_row.connect("notify::selected", self._on_trigger_key_selected)
+        trigger_group.add(key_row)
+
+        # 触发模式
+        mode_row = Adw.ComboRow(
+            title="触发方式",
+            subtitle="「按一下开始」是 Myna 的交互;「按住说话」是豆包原生的",
+        )
+        mode_row.set_model(Gtk.StringList.new(["按住说话(松开即结束)", "按一下开始 / 再按一下结束"]))
+        mode_row.set_selected(1 if self._trigger_mode == "toggle" else 0)
+        mode_row.connect("notify::selected", self._on_trigger_mode_selected)
+        trigger_group.add(mode_row)
+
+        dictation_group = Adw.PreferencesGroup(title="听写")
+        input_page.add(dictation_group)
+
+        silence_row = Adw.SpinRow(
+            title="静音自动结束(秒)",
+            subtitle="0 = 不自动结束(对齐 Myna 的 silence-timeout)",
+        )
+        silence_row.set_adjustment(
+            Gtk.Adjustment(
+                value=self._silence_timeout, lower=0, upper=600, step_increment=1
             )
         )
-        trigger_group.add(
-            Adw.ActionRow(
-                title="最短按压",
-                subtitle="短于 0.15 秒视为误触,不录音也不注入",
-            )
-        )
+        silence_row.connect("notify::value", self._on_silence_changed)
+        dictation_group.add(silence_row)
 
         inject_group = Adw.PreferencesGroup(title="粘贴方式")
         input_page.add(inject_group)
@@ -201,6 +301,14 @@ class ControlWindow:
             self._hud_row.set_active(self._hud_enabled)
             self._hud_row.connect("notify::active", self._on_hud_switch)
             hud_group.add(self._hud_row)
+
+        style_row = Adw.ComboRow(title="波形样式", subtitle="Myna 的 hud-style")
+        style_row.set_model(Gtk.StringList.new([name for _, name in HUD_STYLE_CHOICES]))
+        for index, (value, _name) in enumerate(HUD_STYLE_CHOICES):
+            if value == self._hud_style:
+                style_row.set_selected(index)
+        style_row.connect("notify::selected", self._on_hud_style_selected)
+        hud_group.add(style_row)
 
         usage_group = Adw.PreferencesGroup(title="使用方式")
         input_page.add(usage_group)
@@ -373,6 +481,120 @@ class ControlWindow:
         self._inject_shift = active
         if self._on_inject_shift_toggle is not None:
             self._on_inject_shift_toggle(active)
+
+    # ---- 快捷键(Myna 风格:键帽 + 捕获) ----
+
+    def _refresh_shortcut_row(self) -> None:
+        if self._shortcut_keycap is None or self._shortcut_button is None:
+            return
+        binding = self._desktop_shortcut
+        self._shortcut_keycap.set_label(binding or "未设置")
+        self._shortcut_button.set_label("更改" if binding else "设置")
+        if not self._desktop_shortcut_supported:
+            self._shortcut_row.set_subtitle(
+                "当前桌面不支持写入自定义快捷键(需要 GNOME 或 Xfce)"
+            )
+            self._shortcut_button.set_sensitive(False)
+
+    def _on_shortcut_button(self, *_args) -> None:
+        self._start_shortcut_capture()
+
+    def _start_shortcut_capture(self) -> None:
+        win = Gtk.Window()
+        win.set_transient_for(self._window)
+        win.set_modal(True)
+        win.set_title("设置快捷键")
+        win.set_default_size(420, 170)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        box.set_margin_top(24)
+        box.set_margin_bottom(24)
+        box.set_margin_start(24)
+        box.set_margin_end(24)
+
+        prompt = Gtk.Label(label="按下新的快捷键…")
+        box.append(prompt)
+        hint = Gtk.Label(
+            label="用 Ctrl / Alt / Super 加上另一个键,或单独的功能键。Esc 取消。"
+        )
+        hint.add_css_class("dim-label")
+        hint.set_wrap(True)
+        box.append(hint)
+        cancel = Gtk.Button(label="取消")
+        cancel.connect("clicked", lambda *_: win.close())
+        box.append(cancel)
+        win.set_child(box)
+
+        controller = Gtk.EventControllerKey()
+        controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        controller.connect("key-pressed", self._on_capture_key, win)
+        win.add_controller(controller)
+        self._capture_window = win
+        win.present()
+
+    def _on_capture_key(self, _controller, keyval: int, _keycode: int, state, win) -> bool:
+        mods = state & (
+            Gdk.ModifierType.CONTROL_MASK
+            | Gdk.ModifierType.ALT_MASK
+            | Gdk.ModifierType.SUPER_MASK
+        )
+        if keyval == Gdk.KEY_Escape and not mods:
+            win.close()
+            return True
+        # 裸字母一律不收,免得把打字键抢走(Myna 同样如此)。
+        if not mods and not self._is_function_key(keyval):
+            return True
+
+        accelerator = Gtk.accelerator_name(keyval, mods)
+        win.close()
+        if self._on_desktop_shortcut_changed is None:
+            return True
+        ok, error = self._on_desktop_shortcut_changed(accelerator)
+        if ok:
+            self._desktop_shortcut = accelerator
+            self._refresh_shortcut_row()
+            self.toast(f"快捷键已设为 {accelerator}")
+        else:
+            self.toast(f"快捷键设置失败:{error}")
+        return True
+
+    @staticmethod
+    def _is_function_key(keyval: int) -> bool:
+        if Gdk.KEY_F1 <= keyval <= Gdk.KEY_F35:
+            return True
+        return 0x1008FF00 <= keyval <= 0x1008FFFF  # XF86 媒体键
+
+    # ---- 触发 / 听写设置 ----
+
+    def _on_trigger_key_selected(self, row, _param) -> None:
+        index = row.get_selected()
+        if index < 0 or index >= len(TRIGGER_KEY_CHOICES):
+            return
+        value = TRIGGER_KEY_CHOICES[index][0]
+        self._trigger_key = value
+        if self._on_trigger_key_changed is not None:
+            self._on_trigger_key_changed(value)
+
+    def _on_trigger_mode_selected(self, row, _param) -> None:
+        mode = "toggle" if row.get_selected() == 1 else "hold"
+        self._trigger_mode = mode
+        if self._on_trigger_mode_changed is not None:
+            self._on_trigger_mode_changed(mode)
+
+    def _on_silence_changed(self, row, _param) -> None:
+        seconds = int(row.get_value())
+        self._silence_timeout = seconds
+        if self._on_silence_timeout_changed is not None:
+            self._on_silence_timeout_changed(seconds)
+
+    def _on_hud_style_selected(self, row, _param) -> None:
+        index = row.get_selected()
+        if index < 0 or index >= len(HUD_STYLE_CHOICES):
+            return
+        value = HUD_STYLE_CHOICES[index][0]
+        self._hud_style = value
+        if self._on_hud_style_changed is not None:
+            self._on_hud_style_changed(value)
 
     def _refresh_hud_status(self) -> None:
         if not self._hud_status_label:

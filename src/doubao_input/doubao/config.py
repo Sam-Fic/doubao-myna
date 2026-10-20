@@ -98,6 +98,25 @@ OVERLAY_TEXT_CHARS = 88
 OVERLAY_MAX_LINES = 5
 PTT_BUTTON_SIZE = 60
 
+# --- 触发(按键) ---
+# 物理键:evdev 键名(见 `python -c "import evdev; print(sorted(evdev.ecodes.KEY))"`)。
+TRIGGER_KEY_NAME = "KEY_RIGHTCTRL"
+# hold   = 按住说话,松开即结束(豆包原生交互)
+# toggle = 按一下开始、再按一下结束(**Myna 的交互**)
+TRIGGER_MODE = "hold"
+# 静音多久自动结束(秒);0 = 永不自动结束。对齐 Myna 的 silence-timeout(默认 30)。
+SILENCE_TIMEOUT_SECS = 30
+# 判定"有人声"的 RMS 门限(0~1)。低于它就算静音。
+SILENCE_RMS_THRESHOLD = 0.02
+# 桌面自定义快捷键(GNOME / Xfce),走 D-Bus Toggle —— 这是 Myna 的做法,
+# 于是 <Super>j 这类组合键也能用(evdev 只认得物理单键)。空 = 未绑定。
+DESKTOP_SHORTCUT = ""  # 例如 "<Super>j"
+TOGGLE_COMMAND = (
+    "gdbus call --session --dest com.canonical.Myna.Dictation "
+    "--object-path /com/canonical/Myna/Dictation "
+    "--method com.canonical.Myna.Dictation.Toggle"
+)
+
 # --- Myna HUD (桌面悬浮胶囊) ---
 # 启用后,桌面的悬浮指示器改用 Myna 的 `myna-hud` 渲染器(GTK4/libadwaita
 # + GPU 波形丝带),豆包的识别/注入逻辑完全不变。渲染器经

@@ -140,6 +140,11 @@ class MynaHudBridge:
     def idle(self) -> None:
         self.set_state(IDLE, "")
 
+    def set_style(self, nick: str) -> None:
+        """切换波形样式(bar / ribbon / vumeter),实时生效。"""
+        if self.enabled:
+            self._publisher.set_hud_style(nick)
+
     def push_level(self, rms: float) -> None:
         """麦克风 RMS 入口。**可以从音频线程调用**:这里只写一个 float。"""
         try:

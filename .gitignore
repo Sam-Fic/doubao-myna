@@ -67,3 +67,6 @@ build-dir/
 /.cache/doubao-input_*.deb
 *.changes
 *.buildinfo
+
+# IDE / agent working memory
+.codebuddy/

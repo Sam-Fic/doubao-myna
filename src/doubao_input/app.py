@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import time
 
 import gi
 
@@ -23,18 +24,32 @@ from gi.repository import GLib, Gtk  # type: ignore
 from doubao_input.doubao.app_state import AppState, LoginStatus, RecordingState
 from doubao_input.doubao.asr_client import ASRClient
 from doubao_input.doubao.audio_capture import AudioCapture
-from doubao_input.doubao.config import INJECT_USE_SHIFT, PASTE_DELAY
+from doubao_input.doubao.config import (
+    PASTE_DELAY,
+    SILENCE_RMS_THRESHOLD,
+)
 from doubao_input.doubao.params_store import ParamsStore
 from doubao_input.doubao.transcription import TranscriptionManager
 from doubao_input.hud.bridge import MynaHudBridge
 from doubao_input.hud.settings import (
+    load_desktop_shortcut,
     load_enabled,
+    load_hud_style,
     load_inject_shift,
+    load_silence_timeout,
+    load_trigger_key,
+    load_trigger_mode,
+    save_desktop_shortcut,
     save_enabled,
+    save_hud_style,
     save_inject_shift,
+    save_silence_timeout,
+    save_trigger_key,
+    save_trigger_mode,
 )
-from doubao_input.hud.wire import IDLE, LOADING, NOTICE, RECORDING
+from doubao_input.hud.wire import IDLE, LOADING, NOTICE, RECORDING, STATUS_EMPTY
 from doubao_input.inject.injector import Injector
+from doubao_input.trigger.desktop_shortcut import DesktopShortcut
 from doubao_input.trigger.evdev_ptt import EvdevPtt
 from doubao_input.ui.control_window import ControlWindow
 from doubao_input.ui.overlay import Overlay
@@ -66,6 +81,14 @@ class DoubaoInputApp(Gtk.Application):
         self._hud: MynaHudBridge | None = None
         self._use_hud = False
         self._inject_shift = load_inject_shift()
+        # ---- 触发配置(与 Myna 对齐:按键可配 + 可选桌面快捷键) ----
+        self._trigger_key = load_trigger_key()
+        self._trigger_mode = load_trigger_mode()
+        self._silence_timeout = load_silence_timeout()
+        self._desktop_shortcut = load_desktop_shortcut()
+        self._shortcut = DesktopShortcut()
+        self._last_voice_at = 0.0
+        self._silence_timer = 0
 
     # ---- Gtk.Application hooks (signal handlers, not do_*) ----
 
@@ -117,6 +140,7 @@ class DoubaoInputApp(Gtk.Application):
             on_failed=self._on_hud_failed,
         )
         self._use_hud = self._hud.start() and self._hud.active
+        self._hud.set_style(load_hud_style())
         if self._use_hud:
             logger.info("Myna HUD ready: %s", self._hud.renderer_status())
         else:
@@ -148,6 +172,71 @@ class DoubaoInputApp(Gtk.Application):
                 self._hud = None
             self._use_hud = False
 
+    def set_hud_style(self, nick: str) -> None:
+        """胶囊波形样式:bar / ribbon / vumeter。"""
+        save_hud_style(nick)
+        if self._hud is not None:
+            self._hud.set_style(nick)
+
+    # ---- 触发配置(与 Myna 对齐) ----
+
+    def set_trigger_key(self, key_name: str) -> None:
+        """物理键(evdev 键名)。改完立刻重启监听线程。"""
+        save_trigger_key(key_name)
+        self._trigger_key = key_name
+        self._restart_ptt()
+
+    def set_trigger_mode(self, mode: str) -> None:
+        """hold = 按住说话(豆包原生);toggle = 按一下开/再按一下停(Myna)。"""
+        self._trigger_mode = "toggle" if mode == "toggle" else "hold"
+        save_trigger_mode(self._trigger_mode)
+        logger.info("trigger mode: %s", self._trigger_mode)
+
+    def set_silence_timeout(self, seconds: int) -> None:
+        """静音多少秒自动结束;0 = 不自动结束(对齐 Myna 的 silence-timeout)。"""
+        self._silence_timeout = max(0, min(600, int(seconds)))
+        save_silence_timeout(self._silence_timeout)
+
+    def set_desktop_shortcut(self, accelerator: str) -> tuple[bool, str]:
+        """往桌面写自定义快捷键(命令是 D-Bus Toggle,和 Myna 一样)。"""
+        if not accelerator:
+            self._shortcut.clear()
+            self._desktop_shortcut = ""
+            save_desktop_shortcut("")
+            return True, ""
+        ok, error = self._shortcut.bind(accelerator)
+        if ok:
+            self._desktop_shortcut = accelerator
+            save_desktop_shortcut(accelerator)
+            logger.info("desktop shortcut bound to %s", accelerator)
+        return ok, error
+
+    def desktop_shortcut(self) -> str:
+        """桌面上实际生效的快捷键(以桌面里的为准)。"""
+        return self._shortcut.binding() or self._desktop_shortcut
+
+    def desktop_shortcut_supported(self) -> bool:
+        return self._shortcut.available()
+
+    def _restart_ptt(self) -> None:
+        if self._ptt is None:
+            return
+        try:
+            self._ptt.stop()
+        except Exception:
+            pass
+        self._ptt = EvdevPtt(
+            on_press=self._on_ptt_press,
+            on_release=self._on_ptt_release,
+            on_error=self._on_ptt_error,
+            key_name=self._trigger_key,
+        )
+        try:
+            if not self._ptt.start():
+                logger.warning("evdev PTT 未启动(键=%s)", self._trigger_key)
+        except Exception as e:
+            logger.warning("evdev PTT failed: %s", e)
+
     # ---- 指示器路由(内置悬浮窗 / Myna 胶囊二选一) ----
 
     def _indicator_show(self, wire_state: str, message: str) -> None:
@@ -170,6 +259,8 @@ class DoubaoInputApp(Gtk.Application):
 
     def _push_rms(self, rms: float) -> None:
         """麦克风 RMS 回调(音频线程)。这里只写值,不碰 GTK。"""
+        if rms >= SILENCE_RMS_THRESHOLD:
+            self._last_voice_at = time.monotonic()
         if self._hud is not None:
             self._hud.push_level(rms)
         if self._overlay is not None and not self._use_hud:
@@ -213,6 +304,7 @@ class DoubaoInputApp(Gtk.Application):
         tm.on_overlay_hide = self._indicator_hide
         tm.on_overlay_update = lambda text: self._indicator_text(text)
         tm.on_paste = self._do_paste
+        tm.on_empty_result = self._on_empty_result
         tm.on_cancel_enabled_changed = lambda enabled: None
         tm.on_auth_expired = self._on_auth_expired
         tm.on_params_needed = self._provide_params
@@ -231,6 +323,17 @@ class DoubaoInputApp(Gtk.Application):
             hud_status=self._hud_status,
             inject_shift=self._inject_shift,
             on_inject_shift_toggle=self.set_inject_shift,
+            trigger_key=self._trigger_key,
+            on_trigger_key_changed=self.set_trigger_key,
+            trigger_mode=self._trigger_mode,
+            on_trigger_mode_changed=self.set_trigger_mode,
+            silence_timeout=self._silence_timeout,
+            on_silence_timeout_changed=self.set_silence_timeout,
+            hud_style=load_hud_style(),
+            on_hud_style_changed=self.set_hud_style,
+            desktop_shortcut=self.desktop_shortcut(),
+            desktop_shortcut_supported=self.desktop_shortcut_supported(),
+            on_desktop_shortcut_changed=self.set_desktop_shortcut,
         )
 
         # ---- Initial state: cached params? ----
@@ -244,6 +347,7 @@ class DoubaoInputApp(Gtk.Application):
             on_press=self._on_ptt_press,
             on_release=self._on_ptt_release,
             on_error=self._on_ptt_error,
+            key_name=self._trigger_key,
         )
         try:
             started = self._ptt.start()
@@ -264,13 +368,16 @@ class DoubaoInputApp(Gtk.Application):
         if not self._tm:
             return
         if self.app_state.login_status != LoginStatus.LOGGED_IN:
-            if self._use_hud and self._hud is not None:
-                self._hud.notice("请先在控制窗口登录豆包")
-            else:
-                self._overlay.set_text("请先在控制窗口完成登录")
-                self._overlay.show("未登录")
+            self._not_logged_in()
             return
-        self._tm.handle_press()
+        if self._trigger_mode == "toggle":
+            # Myna 的交互:按一下开始,再按一下结束。
+            if self.app_state.recording_state == RecordingState.IDLE:
+                self._start_session()
+            else:
+                self._stop_session()
+            return
+        self._start_session()
 
     def _on_ptt_release(self) -> None:
         if not self._tm:
@@ -278,7 +385,64 @@ class DoubaoInputApp(Gtk.Application):
         if self.app_state.login_status != LoginStatus.LOGGED_IN:
             self._indicator_hide()
             return
+        if self._trigger_mode == "toggle":
+            return  # toggle 模式下松键不做事
+        self._stop_session()
+
+    def _not_logged_in(self) -> None:
+        if self._use_hud and self._hud is not None:
+            self._hud.notice("请先在控制窗口登录豆包")
+        elif self._overlay is not None:
+            self._overlay.set_text("请先在控制窗口完成登录")
+            self._overlay.show("未登录")
+
+    def _start_session(self) -> None:
+        if not self._tm:
+            return
+        self._last_voice_at = time.monotonic()
+        self._tm.handle_press()
+        self._start_silence_watch()
+
+    def _stop_session(self) -> None:
+        if not self._tm:
+            return
+        self._stop_silence_watch()
         self._tm.handle_release()
+
+    # ---- 静音自动结束(Myna 的 silence-timeout) ----
+
+    def _start_silence_watch(self) -> None:
+        if self._silence_timeout <= 0 or self._silence_timer:
+            return
+        self._silence_timer = GLib.timeout_add_seconds(1, self._silence_tick)
+
+    def _stop_silence_watch(self) -> None:
+        if self._silence_timer:
+            GLib.source_remove(self._silence_timer)
+            self._silence_timer = 0
+
+    def _silence_tick(self) -> bool:
+        state = self.app_state.recording_state
+        if state == RecordingState.IDLE:
+            self._silence_timer = 0
+            return GLib.SOURCE_REMOVE
+        if self._last_voice_at:
+            silent_for = time.monotonic() - self._last_voice_at
+            if silent_for >= self._silence_timeout:
+                logger.info("静音 %.0fs,自动结束(对齐 Myna 的 silence-timeout)", silent_for)
+                self._stop_silence_watch()
+                if self._tm is not None:
+                    self._tm.handle_release()
+                return GLib.SOURCE_REMOVE
+        return GLib.SOURCE_CONTINUE
+
+    def _on_empty_result(self) -> None:
+        """说完但没识别到内容 → 可恢复提示(Myna 的 “No speech detected”)。"""
+        if self._use_hud and self._hud is not None:
+            self._hud.notice(STATUS_EMPTY)
+        elif self._overlay is not None:
+            self._overlay.show(STATUS_EMPTY)
+            GLib.timeout_add_seconds(2, lambda: (self._overlay.hide(), False)[1])
 
     def _on_ptt_error(self, msg: str) -> None:
         logger.warning("PTT error: %s", msg)
