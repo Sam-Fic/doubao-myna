@@ -287,5 +287,5 @@ systemctl --user enable --now doubao-input.service
 ---
 
 ## 许可证
-本项目基于 MIT 许可证开源，详见 [`LICENSE`](LICENSE)。
+本项目基于 AGPL-3.0-or-later 许可证开源，详见 [`LICENSE`](LICENSE)。
 第三方组件归属及 Myna AGPL 协议说明详见 [`NOTICE`](NOTICE)。

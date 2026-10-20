@@ -137,7 +137,7 @@ not currently wired up — tests/probe/ are manual-only.
 
 ## Vendoring / license
 
-- Project license: MIT — see [`LICENSE`](LICENSE).
+- Project license: AGPL-3.0-or-later — see [`LICENSE`](LICENSE).
 - `src/doubao_input/doubao/` is from `doubao-murmur` (MIT). When porting a change from upstream,
   update the docstring attribution in the affected file and amend [`NOTICE`](NOTICE) if the
   delta is non-trivial.

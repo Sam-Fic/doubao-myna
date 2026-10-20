@@ -8,13 +8,13 @@ version = "1.0.0"
 description = "Global push-to-hold voice input for Linux/Wayland, backed by Doubao ASR"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = { text = "AGPL-3.0-or-later" }
 authors = [{ name = "doubao-input contributors" }]
 classifiers = [
     "Environment :: X11 Applications",
     "Environment :: Wayland",
     "Intended Audience :: End Users/Desktop",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPL)",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
     "Topic :: Utilities",
