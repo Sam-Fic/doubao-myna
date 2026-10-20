@@ -94,7 +94,7 @@ python3 -m venv .venv
 ```
 
 ### 首次配置
-首次启动会先弹出**设置向导**（对齐 Myna 的 onboarding）：欢迎 → 登录豆包（未登录无法继续）→ 设置快捷键（可跳过，之后在设置窗口配置）→ Myna 悬浮胶囊（可选，附安装命令）。向导只出现一次，之后可在设置窗口主菜单「运行设置向导…」重新打开。
+首次启动会先弹出**设置向导**（对齐 Myna 的 onboarding）：欢迎 → 登录豆包（未登录无法继续）→ 设置快捷键（桌面快捷键、物理键、触发方式都能在这里直接改）→ Myna 悬浮胶囊（可选，附安装命令）。向导只出现一次，之后可在设置窗口主菜单「运行设置向导…」重新打开。
 
 在 WebView 中完成豆包网页登录后，内置 JS 拦截器将自动提取 Cookies、`device_id` 及 `web_id`，并写入 `~/.config/doubao-input/asr_params.json`。登录窗口随后自动关闭。
 
@@ -117,7 +117,21 @@ python3 -m venv .venv
 
 ### 设置窗口
 采用 `Adw.ApplicationWindow` 结合 `ToolbarView` 与 `HeaderBar`，内部通过 `Adw.ViewStack` 管理三个配置页。若系统缺失 libadwaita，自动降级为纯 GTK4 窗口。
-- **账号页**：管理登录状态、凭证路径及重新登录操作。
+
+界面组件尽量交给 libadwaita 的默认值，减少手搓样式：
+
+| 细节 | 实现 |
+|---|---|
+| 登录提示 | 顶部 `Adw.Banner`（未登录时出现，带「登录」按钮），而不是只靠一行小字 |
+| 主菜单 | `Gio.Menu` + `Gtk.MenuButton`（运行向导 / 关于），自带键盘导航 |
+| 键帽 | `Adw.ShortcutLabel`（旧版 libadwaita 退回内置 `.keycap` 样式） |
+| 按钮 | 行尾小按钮一律**纯文字**（GNOME 设置项惯例：小按钮加图标反而显噪），只保留 `suggested-action` / `destructive-action` 的语义色 |
+| 状态信息 | 写在「行的副标题」上，随窗口宽度自动折行，文本统一转义 |
+| 诊断报告 | 卡片内不再套边框（Adw 反模式），高度封顶后交给页面滚动，无双层滚动条 |
+| 首次运行向导 | `Adw.Window` + `Adw.StatusPage` 欢迎页 + 标题栏上的「上一步 / 下一步」+ `Adw.Toast` 提示 |
+| 快捷键捕获 | `Adw.Window` + `Adw.StatusPage`（图标 + 提示），Esc 取消 |
+
+- **账号页**：管理登录状态、凭证路径（可一键复制）及重新登录操作。
 - **输入页**：桌面快捷键（键帽展示 + 按键捕获，Esc 取消）、evdev 物理键、触发方式（按住 / 按一下）、静音自动结束秒数、焦点离开时结束（可选开关）、提示音开关、波形样式、粘贴快捷键（Ctrl+V / Ctrl+Shift+V）及悬浮窗组件选择。
 - **诊断页**：提供麦克风自检、剪贴板链路测试、悬浮窗状态监控、最近错误记录（含时间），以及隐私安全的诊断报告（可刷新 / 复制；不含音频、识别文本或文件路径，路径一律替换为 `[redacted]`）。
 
@@ -308,6 +322,14 @@ systemctl --user enable --now doubao-input.service
 - 新增首次运行向导（欢迎 → 登录 → 快捷键 → Myna 胶囊）与设置窗口主菜单（运行向导 / 关于）。
 - 新增 `--log-file` 文件日志；内置悬浮窗支持高对比度。
 - 新增 `docs/myna-parity.md`，逐项记录与 Myna 体验设计的对齐情况。
+- UI 细节打磨（组件统一走 libadwaita 默认值）：
+  - 未登录时窗口顶部出现 `Adw.Banner`，可直接点「登录」。
+  - 主菜单改用 `Gio.Menu` + `Gtk.MenuButton`；键帽改用 `Adw.ShortcutLabel`；行尾按钮去掉图标，只留文字。
+  - 「最近错误」「悬浮窗状态」改为写在行的副标题上（自动折行、文本转义）。
+  - 诊断报告去掉嵌套边框与双层滚动条；静音秒数改用数字型 `Adw.SpinRow`。
+  - 首次运行向导改为 `Adw.StatusPage` 欢迎页 + 标题栏导航 + 真实 Toast；快捷键捕获窗同样用 Adw。
+  - 内置悬浮窗改为不可缩放、不可抢焦点，中文按字符换行。
+  - 登录窗口标题由 "Doubao Murmur - 登录" 改为 "登录豆包"；关于窗口显示真实版本号与应用图标。
 
 ### v1.0.2 (2026-06-21)
 - 替换应用图标为 RGBA 真透明版本，消除白色背景边框。
@@ -323,11 +345,22 @@ systemctl --user enable --now doubao-input.service
 ---
 
 ## 致谢
-- **[Myna](https://github.com/canonical/myna)** (AGPL-3.0-or-later)：提供应用图标、`myna-hud` 渲染器、GNOME Shell 扩展方案及 libadwaita UI 规范。本项目通过本地编译与 D-Bus 属性进行集成。
-- **[doubao-murmur](https://github.com/yourname/doubao-murmur)** (MIT)：提供豆包逆向逻辑（登录、WebSocket ASR、音频采集）的 Linux 移植基础。
-- **[wurong98/doubao-input-for-linux](https://github.com/wurong98/doubao-input-for-linux)** (MIT)：上游项目，提供 Push-to-Hold 交互、evdev/uinput 注入及 WebKit 登录窗口实现。
-- **豆包 (Doubao)**：提供底层 Web 版流式 ASR 服务（本项目为非官方逆向实现，与字节跳动无关联）。
-- **开源社区**：感谢 `evdev`、`uinput`、`wl-clipboard`、GTK4、libadwaita 及 PortAudio 等基础组件的支持。
+### 上游项目
+- **[Myna](https://github.com/canonical/myna)** (AGPL-3.0-or-later)：应用图标、`myna-hud` 渲染器、GNOME Shell 扩展与设置窗口风格均来自这里；本项目通过本地编译与 D-Bus 属性集成，未链接其代码。
+- **[doubao-murmur](https://github.com/yourname/doubao-murmur)** (MIT)：豆包逆向逻辑（登录、WebSocket ASR、音频采集）的来源。仓库地址未公开（NOTICE 中为占位符），欢迎知情者补充。
+- **[wurong98/doubao-input-for-linux](https://github.com/wurong98/doubao-input-for-linux)** (MIT)：上游项目，提供 Push-to-Hold 交互、evdev 触发、剪贴板 + uinput 注入及 WebKit 登录窗口。
+- **豆包 (Doubao)**：底层 Web 版流式 ASR 服务（本项目为非官方逆向实现，与字节跳动无关联）。
+
+### 贡献者（2026-10-21 快照，同步写在设置窗口「关于 → 鸣谢」）
+| 项目 | 贡献者 |
+|---|---|
+| 本 fork（Sam-Fic/doubao-myna） | Sam-Fic、wurong98（上游历史） |
+| [canonical/myna](https://github.com/canonical/myna) | quine00、3v1n0、jibel、weblate、juanruitina、Matthaiks、paul-geoghegan、IhorHordiichuk、ogres、mz2、github-actions[bot]、Copilot、dependabot[bot] |
+| [wurong98/doubao-input-for-linux](https://github.com/wurong98/doubao-input-for-linux) | wurong98 |
+| doubao-murmur | 上游未公开，暂缺 |
+
+### 运行时依赖
+GTK 4 / libadwaita、PyGObject、wl-clipboard、evdev / uinput、websockets、sounddevice / PortAudio、canberra-gtk-play 与 freedesktop 声音主题、GNOME Shell（myna-shell 扩展）。
 
 ---
 

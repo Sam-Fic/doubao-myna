@@ -37,9 +37,24 @@ logger = logging.getLogger(__name__)
 APP_NAME = "豆包语音输入法"
 ICON_NAME = "doubao-input"
 DEVELOPER_NAME = "Sam-Fic"
-COPYRIGHT = "© 2026 Sam-Fic"
+COPYRIGHT = "© 2026 Sam-Fic · © 2026 doubao-input-for-linux contributors"
 
 WEBSITE = "https://github.com/Sam-Fic/doubao-myna"
+
+#: 贡献者名单快照日期 —— 下面几节是当天从各仓库 GitHub contributors API 拉的。
+#: 人不多,就手写在代码里(不想为了几行字去发网络请求);换新血时改这里即可。
+CONTRIBUTORS_SNAPSHOT = "2026-10-21"
+
+#: 主页面「开发者」= 本项目作者 + 上游作者。
+DEVELOPERS = [
+    "Sam-Fic https://github.com/Sam-Fic",
+    "wurong98 https://github.com/wurong98",
+]
+
+#: 鸣谢页:图标与界面出自谁手。
+ARTISTS = [
+    "Myna(Canonical)— 应用图标、myna-hud 悬浮胶囊、GNOME 扩展与设置窗口风格",
+]
 
 #: 主页面上的「支持问题 / 报告问题」两个入口。
 #: 仓库目前没开 Issues / Discussions(GitHub 上是禁用状态,点进去只有提示页),
@@ -57,14 +72,34 @@ LINKS = [
     ("与 Myna 的对齐说明", f"{WEBSITE}/blob/main/docs/myna-parity.md"),
 ]
 
-#: Credits 页:本项目直接借鉴 / 依赖的上游项目
+#: Credits 页:本项目直接借鉴 / 依赖的上游项目与其贡献者。
+#: 名单为 CONTRIBUTORS_SNAPSHOT 当天从 GitHub contributors API 拉取的快照。
 CREDIT_SECTIONS = [
     (
-        "参考项目",
+        "本项目",
         [
-            "Myna (Canonical) — 界面风格、应用图标、myna-hud 悬浮胶囊",
-            "doubao-murmur — 豆包 ASR 协议与逆向实现",
-            "wurong98/doubao-input-for-linux — 上游 Linux 端口",
+            "Sam-Fic — 界面层(Myna 化)、触发可配、诊断报告、首次运行向导",
+            "wurong98 — 上游 doubao-input-for-linux 的作者:push-to-hold、"
+            "evdev 触发、剪贴板 + uinput 注入、WebKit 登录",
+        ],
+    ),
+    (
+        f"Myna 贡献者(canonical/myna · AGPL-3.0-or-later · {CONTRIBUTORS_SNAPSHOT} 快照)",
+        [
+            "quine00", "3v1n0", "jibel", "weblate", "juanruitina",
+            "Matthaiks", "paul-geoghegan", "IhorHordiichuk", "ogres",
+            "mz2", "github-actions[bot]", "Copilot", "dependabot[bot]",
+        ],
+    ),
+    (
+        f"doubao-input-for-linux 贡献者(wurong98/doubao-input-for-linux · MIT · {CONTRIBUTORS_SNAPSHOT} 快照)",
+        ["wurong98"],
+    ),
+    (
+        "doubao-murmur(豆包 ASR 逆向 · MIT)",
+        [
+            "上游仓库地址未公开(NOTICE 里记的是占位符),只能按 NOTICE 的署名致谢。",
+            "如果你知道它的实际地址,欢迎告诉我们补上名单。",
         ],
     ),
 ]
@@ -72,30 +107,75 @@ CREDIT_SECTIONS = [
 #: Acknowledgements 页:运行时依赖
 ACKNOWLEDGEMENT_SECTIONS = [
     (
-        "运行时依赖",
+        "界面与桌面集成",
         [
             "GTK 4 与 libadwaita — 界面框架",
             "wl-clipboard — 剪贴板写入",
             "evdev 与 uinput — 物理键监听与文本注入",
-            "canberra-gtk-play — 提示音",
+            "canberra-gtk-play 与 freedesktop 声音主题 — 提示音",
+            "GNOME Shell(myna-shell 扩展)— 悬浮胶囊的原版定位",
+        ],
+    ),
+    (
+        "Python 与音频",
+        [
+            "PyGObject — GTK 绑定",
+            "websockets — 豆包 ASR 的 WebSocket 客户端",
+            "sounddevice / PortAudio — 麦克风采集",
         ],
     ),
 ]
 
-#: 法律声明里的额外条目
+#: 法律声明页:每个组件的版权与许可。
+#: 元组 = (标题, 版权行, Gtk.License, 自定义许可链接/文本)
 LEGAL_SECTIONS = [
     (
-        "应用图标",
-        "图标取自 Canonical 的 Myna,按 AGPL-3.0-or-later 使用,详见仓库 NOTICE。",
+        "doubao-input-for-linux(上游)",
+        "© 2026 doubao-input-for-linux contributors",
+        "MIT_X11",
+        None,
+    ),
+    (
+        "doubao-murmur(src/doubao_input/doubao/ 下的 ASR 逻辑)",
+        "© 2024 doubao-murmur contributors — 上游仓库地址未公开,见 NOTICE",
+        "MIT_X11",
+        None,
+    ),
+    (
+        "Myna(应用图标 / myna-hud / GNOME 扩展 / 设置窗口风格)",
+        "© Canonical Ltd — 按 AGPL-3.0-or-later 使用,详见仓库 NOTICE",
+        "AGPL_3_0",
+        None,
     ),
 ]
 
-#: 详情页说明(Pango 标记,允许链接)
-COMMENTS = (
-    "全局语音输入法:在任意应用的输入框里聚焦,默认按住 <b>右 Ctrl</b> 说话,"
-    "松开就把识别结果粘贴进去。\n"
-    "识别由豆包的网页 ASR 完成;登录凭证只保存在本机,除音频外不上传任何内容。"
-)
+#: 详情页说明(Pango 标记,允许链接)。触发那一段按用户当前配置生成,
+#: 不再写死"右 Ctrl"—— 用户很可能早就改了键/模式。
+def comments(app: Any = None) -> str:
+    trigger = _trigger_phrase(app)
+    return (
+        f"全局语音输入法:在任意应用的输入框里聚焦,{trigger}。\n"
+        "识别由豆包的网页 ASR 完成;登录凭证只保存在本机,除音频外不上传任何内容。"
+    )
+
+
+def _trigger_phrase(app: Any = None) -> str:
+    """「怎么触发」的一句话,跟着设置走;拿不到配置就退回默认文案。"""
+    if app is None:
+        return "默认按住 <b>右 Ctrl</b> 说话,松开就粘贴进去"
+    try:
+        from doubao_input.doubao.config import TRIGGER_KEY_CHOICES
+
+        shortcut = app.desktop_shortcut()
+        if shortcut:
+            return f"按 <b>{shortcut}</b> 开始,再按一次结束"
+        label = dict(TRIGGER_KEY_CHOICES).get(app._trigger_key, app._trigger_key)
+        if app._trigger_mode == "toggle":
+            return f"按 <b>「{label}」</b>开始,再按一次结束"
+        return f"按住 <b>「{label}」</b>说话,松开就粘贴进去"
+    except Exception as e:
+        logger.debug("about: trigger phrase fallback: %s", e)
+        return "默认按住 <b>右 Ctrl</b> 说话,松开就粘贴进去"
 
 #: 新功能页(AppStream 风格:只认 <p> / <ul> / <ol> / <li> / <em> / <code>)
 #: 内容对齐 README 的「更新日志 → v1.1.0」。
@@ -128,17 +208,23 @@ def app_version() -> str:
         return "1.1.0"
 
 
-def _license_type() -> Gtk.License:
-    """AGPL-3.0 许可类型。
+def _license(name: str) -> Gtk.License:
+    """按名字取 Gtk.License;取不到就退回 UNKNOWN(不会炸)。
 
-    GTK 4.10 起按 SPDX 重命名为 AGPL_3_0,更早的 GTK 4 只有 AGPL_3,
-    两个名字都认一下,免得在老系统上直接 AttributeError。
+    GTK 4.10 起按 SPDX 改名(MIT → MIT_X11、AGPL_3 → AGPL_3_0),
+    所以这里用字符串查表,老 GTK 也能跑。
     """
-    for name in ("AGPL_3_0", "AGPL_3"):
-        value = getattr(Gtk.License, name, None)
-        if value is not None:
-            return value
-    return Gtk.License.GPL_3_0
+    value = getattr(Gtk.License, name, None)
+    if value is None:
+        # 老 GTK 上的 MIT 叫 MIT_X11,新的也有;AGPL_3_0 老名字是 AGPL_3。
+        fallback = {"MIT": "MIT_X11", "MIT_X11": "MIT", "AGPL_3_0": "AGPL_3", "AGPL_3": "AGPL_3_0"}
+        value = getattr(Gtk.License, fallback.get(name, ""), None)
+    return value if value is not None else Gtk.License.UNKNOWN
+
+
+def _license_type() -> Gtk.License:
+    """本项目自己的许可:AGPL-3.0-or-later。"""
+    return _license("AGPL_3_0")
 
 
 def _set(component: Any, name: str, value: Any) -> None:
@@ -183,14 +269,15 @@ def _fill(component: Any, app: Any, version: str) -> None:
     _set(component, "version", version)
     _set(component, "developer_name", DEVELOPER_NAME)
     _set(component, "copyright", COPYRIGHT)
-    _set(component, "comments", COMMENTS)
+    _set(component, "comments", comments(app))
     _set(component, "website", WEBSITE)
     if ISSUE_URL:
         _set(component, "issue_url", ISSUE_URL)
     if SUPPORT_URL:
         _set(component, "support_url", SUPPORT_URL)
     _set(component, "license_type", _license_type())
-    _set(component, "developers", [DEVELOPER_NAME])
+    _set(component, "developers", DEVELOPERS)
+    _set(component, "artists", ARTISTS)
     _set(component, "release_notes", RELEASE_NOTES)
     _set(component, "release_notes_version", RELEASE_NOTES_VERSION)
     _set(component, "debug_info", _debug_info(app))
@@ -202,8 +289,15 @@ def _fill(component: Any, app: Any, version: str) -> None:
         _add(component, "add_credit_section", title, people)
     for title, people in ACKNOWLEDGEMENT_SECTIONS:
         _add(component, "add_acknowledgement_section", title, people)
-    for title, text in LEGAL_SECTIONS:
-        _add(component, "add_legal_section", title, text)
+    # add_legal_section(title, copyright, license_type, license=None)
+    # 注意是四个参数 —— 以前只传两个会被 PyGObject 静默拒绝,法律页就是空的。
+    for title, copyright_text, license_name, custom in LEGAL_SECTIONS:
+        if custom:
+            _add(component, "add_legal_section", title, copyright_text,
+                 Gtk.License.CUSTOM, custom)
+        else:
+            _add(component, "add_legal_section", title, copyright_text,
+                 _license(license_name))
 
 
 def show_about(
