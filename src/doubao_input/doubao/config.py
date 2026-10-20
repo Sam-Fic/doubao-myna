@@ -56,6 +56,12 @@ def get_config_dir() -> Path:
     )
     app_dir = Path(config_home) / CONFIG_DIR_NAME
     app_dir.mkdir(parents=True, exist_ok=True)
+    # 目录里存的是 ASR 会话凭证(asr_params.json),收紧到仅本用户可进。
+    # 已存在的目录也要修正一次,兼容早期 0755 的安装。
+    try:
+        app_dir.chmod(0o700)
+    except OSError as e:
+        logging.getLogger(__name__).warning("chmod %s: %s", app_dir, e)
     return app_dir
 
 

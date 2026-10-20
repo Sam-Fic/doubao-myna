@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from dataclasses import asdict, dataclass
 
 from doubao_input.doubao.config import get_params_path
@@ -36,8 +37,14 @@ class ParamsStore:
     def save(params: ASRParams) -> None:
         try:
             data = json.dumps(asdict(params), ensure_ascii=False, indent=2)
-            get_params_path().write_text(data, encoding="utf-8")
-            logger.info("Saved ASR params to %s", get_params_path())
+            path = get_params_path()
+            # 先以独占权限建文件再写入,避免 0644 的中间窗口暴露 cookies
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(data)
+            # 已存在的文件不会因 open 的 mode 参数自动收紧,补一次 chmod
+            path.chmod(0o600)
+            logger.info("Saved ASR params to %s", path)
         except Exception as e:
             logger.error("Failed to save params: %s", e)
 
