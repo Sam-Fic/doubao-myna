@@ -64,12 +64,17 @@ class EvdevPtt:
         on_release: Callable[[], None],
         on_error: Callable[[str], None] | None = None,
         key_name: str = "KEY_RIGHTCTRL",
+        cancel_key_name: str = "",
+        on_cancel: Callable[[], None] | None = None,
     ) -> None:
         self._on_press = on_press
         self._on_release = on_release
         self._on_error = on_error
         self._key_name = key_name
         self._key_code = resolve_key_code(key_name)
+        self._cancel_key_name = cancel_key_name
+        self._on_cancel = on_cancel
+        self._cancel_code = resolve_key_code(cancel_key_name) if cancel_key_name else None
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
         self._fds: list[int] = []
@@ -186,7 +191,17 @@ class EvdevPtt:
                 "llHHi", data[i : i + _EVENT_SIZE]
             )
             i += _EVENT_SIZE
-            if ev_type != EV_KEY or ev_code != self._key_code:
+            if ev_type != EV_KEY:
+                continue
+            if self._cancel_code is not None and ev_code == self._cancel_code:
+                # 取消键只要按下边沿(不做按键重复)。
+                if ev_value == 1 and self._on_cancel is not None:
+                    try:
+                        idle_add(self._on_cancel)
+                    except Exception:
+                        pass
+                continue
+            if ev_code != self._key_code:
                 continue
             if ev_value == 1:  # press
                 try:

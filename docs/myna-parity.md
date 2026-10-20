@@ -39,7 +39,7 @@
 | 静音自动结束 | `silence-timeout`,默认 **30s**,`0`=不自动结束(0–600) | 已实现,同样默认 30s / 0–600,设置窗口 SpinRow | ✅ |
 | 最长录音时长 | 同上(静音超时即上限) | 同上 | ✅ |
 | 最短按压 | 无(按一下即开始) | `MIN_PRESS_DURATION=0.15s` 防误触 | 🟡 有意保留(误触保护) |
-| 取消 | 无取消键:再按一次 / 焦点丢失 / 目标窗口关闭 | toggle 模式下再按一次 = 取消;开启「焦点离开时结束」后焦点一走即取消;`ESC` 未接线 | 🟡 |
+| 取消 | 无取消键:再按一次 / 焦点丢失 / 目标窗口关闭 | **ESC 取消**(键可配)、toggle 模式下再按一次、开启「焦点离开时结束」后焦点一走即取消 | ✅ 超集 |
 | 停止后收尾 | `finalizing` 直到终稿或超时 | `STOPPING` + `STOP_SAFETY_TIMEOUT=1.0s` 兜底 | 🟡 机制不同(云端 ASR) |
 | 空结果 | `notice`「No speech detected」(可恢复,不是错误) | 已实现:`on_empty_result` → notice「没有听到内容」 | ✅ |
 | 焦点丢失结束 | 有(IBus 通道天然感知),丢弃本次文本 | 可选开关(默认关):`ui/focus_watch.py` best-effort 探测,连续 2 次读到焦点变了才结束并丢弃 | 🟡 默认关(见下) |
@@ -66,7 +66,7 @@
 | 电平 | 15–20Hz,**从不去重** | 20Hz + 插值平滑(麦克风 RMS 只有 ~4Hz) | ✅ |
 | hud-style | GSettings `hud-style`:bar / ribbon / vumeter | 设置窗口下拉(`settings.json` 的 `hud_style`),实时生效 | ✅ |
 | 提示停留 | notice 8–15s(按字数)、error 不自动消失 | notice 6s / error 10s(可在 `config.py` 改) | 🟡 |
-| 无渲染器时 | 桌面通知兜底(单条原地替换,Urgency=Normal) | ❌ 无通知,退回内置悬浮窗 | ❌ |
+| 无渲染器时 | 桌面通知兜底(单条原地替换,Urgency=Normal) | 已实现(`ui/notifier.py`:单 id 原地替换、错误用 Urgent、notice 8–15s 自隐、文案不含转写) | ✅ |
 | 转写文本上屏 | 契约禁止(C3) | 有意偏离:`HUD_SHOW_TRANSCRIPT` 把最新一段文本放进 StatusMessage | 🟡 有意 |
 | 定位 | 扩展用 `Meta.WaylandClient` 收编 → 底部居中、避 dock | 装 `myna-shell` 扩展即一致;未装则由混成器摆位 | 🟡 见 README |
 
@@ -86,8 +86,8 @@
 
 | 设计点 | Myna | 本项目 | 状态 |
 |---|---|---|---|
-| 开始/结束/错误提示音 | 有(`sounds` + `sound-set`) | ❌ 无 | ❌ |
-| 桌面通知兜底 | 有 | ❌ 无 | ❌ |
+| 开始/结束/错误提示音 | 有(`sounds` + `sound-set`) | 有开关(`ui/sounds.py`),播系统 freedesktop 事件音,不搬运 Myna 的音频资源 | 🟡 音色不可选 |
+| 桌面通知兜底 | 有 | 有(`ui/notifier.py`) | ✅ |
 | 减弱动效 | 跟随 `gtk-interface-reduced-motion` | Myna 胶囊自动跟随;**内置悬浮窗**的呼吸/流光不跟随 | 🟡 |
 | 高对比 / 深浅色 | 跟随 Adw.StyleManager | 胶囊跟随;内置悬浮窗是写死的暗色胶囊 | 🟡 |
 | 屏幕阅读器播报 | 状态变化可感知、捕获按键 announce | ❌ 无 | ❌ |
@@ -120,9 +120,9 @@
 
 **P1(补齐 Myna 的交互)**
 4. 快捷键**冲突检测**:写键前检查桌面保留键与已占用的自定义快捷键,弹「替换?」对话框。
-5. **提示音**:`sounds` 开关 + 用 `canberra-gtk-play` 播 freedesktop 事件音(避免搬运 Myna 的 AGPL 音频资源)。
-6. **取消**:`ESC` 取消当前会话(或 toggle 模式下的第二次按键,已支持)。
-7. **错误历史**:记最近一次错误(时间 + 文案)并在诊断页显示。
+5. ~~提示音~~ ✅ 已做(`sounds` 开关,系统 freedesktop 事件音)。
+6. ~~取消~~ ✅ 已做(ESC 取消,键可配)。
+7. **错误历史**:记最近一次错误(时间 + 文案),并按需发布 D-Bus 的 `LastError*` 三属性。
 
 **P2(完整度)**
 8. Onboarding 向导(3 步),至少覆盖"登录豆包 + 设置快捷键 + 装 Myna 胶囊"。

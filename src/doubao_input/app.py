@@ -25,6 +25,7 @@ from doubao_input.doubao.app_state import AppState, LoginStatus, RecordingState
 from doubao_input.doubao.asr_client import ASRClient
 from doubao_input.doubao.audio_capture import AudioCapture
 from doubao_input.doubao.config import (
+    CANCEL_KEY_NAME,
     FOCUS_CONFIRM_TICKS,
     FOCUS_POLL_SECS,
     PASTE_DELAY,
@@ -39,6 +40,7 @@ from doubao_input.hud.settings import (
     load_hud_style,
     load_inject_shift,
     load_silence_timeout,
+    load_sounds,
     load_stop_on_focus_loss,
     load_trigger_key,
     load_trigger_mode,
@@ -47,6 +49,7 @@ from doubao_input.hud.settings import (
     save_hud_style,
     save_inject_shift,
     save_silence_timeout,
+    save_sounds,
     save_stop_on_focus_loss,
     save_trigger_key,
     save_trigger_mode,
@@ -57,7 +60,9 @@ from doubao_input.trigger.desktop_shortcut import DesktopShortcut
 from doubao_input.trigger.evdev_ptt import EvdevPtt
 from doubao_input.ui.control_window import ControlWindow
 from doubao_input.ui.focus_watch import focused_identity, reason, supported
+from doubao_input.ui.notifier import Notifier
 from doubao_input.ui.overlay import Overlay
+from doubao_input.ui.sounds import Sounds
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +98,8 @@ class DoubaoInputApp(Gtk.Application):
         self._desktop_shortcut = load_desktop_shortcut()
         self._shortcut = DesktopShortcut()
         self._stop_on_focus_loss = load_stop_on_focus_loss()
+        self._sounds = Sounds(load_sounds())
+        self._notifier: Notifier | None = None
         self._last_voice_at = 0.0
         self._silence_timer = 0
         self._focus_timer = 0
@@ -239,6 +246,8 @@ class DoubaoInputApp(Gtk.Application):
             on_release=self._on_ptt_release,
             on_error=self._on_ptt_error,
             key_name=self._trigger_key,
+            cancel_key_name=CANCEL_KEY_NAME,
+            on_cancel=self._on_cancel_key,
         )
         try:
             if not self._ptt.start():
@@ -251,8 +260,12 @@ class DoubaoInputApp(Gtk.Application):
     def _indicator_show(self, wire_state: str, message: str) -> None:
         if self._hud is not None:
             self._hud.set_state(wire_state, message)
-        if self._overlay is not None and not self._use_hud:
-            self._overlay.show(message)
+        if not self._use_hud:
+            if self._overlay is not None:
+                self._overlay.show(message)
+            # 胶囊没起来时,状态至少要在通知里看得见(Myna 的兜底)。
+            if self._notifier is not None:
+                self._notifier.set_state(wire_state, message)
 
     def _indicator_text(self, message: str) -> None:
         if self._hud is not None:
@@ -264,15 +277,21 @@ class DoubaoInputApp(Gtk.Application):
         """可恢复提示(对齐 Myna 的 notice):不是错误,几秒后自己消失。"""
         if self._use_hud and self._hud is not None:
             self._hud.notice(message)
-        elif self._overlay is not None:
-            self._overlay.show(message)
-            GLib.timeout_add_seconds(2, lambda: (self._overlay.hide(), False)[1])
+        else:
+            if self._overlay is not None:
+                self._overlay.show(message)
+                GLib.timeout_add_seconds(2, lambda: (self._overlay.hide(), False)[1])
+            if self._notifier is not None:
+                self._notifier.set_state(NOTICE, message)
 
     def _indicator_hide(self) -> None:
         if self._hud is not None:
             self._hud.idle()
-        if self._overlay is not None and not self._use_hud:
-            self._overlay.hide()
+        if not self._use_hud:
+            if self._overlay is not None:
+                self._overlay.hide()
+            if self._notifier is not None:
+                self._notifier.set_state(IDLE, "")
 
     def _push_rms(self, rms: float) -> None:
         """麦克风 RMS 回调(音频线程)。这里只写值,不碰 GTK。"""
@@ -288,6 +307,10 @@ class DoubaoInputApp(Gtk.Application):
     def _build(self) -> None:
         self._overlay = Overlay()
         self._injector = Injector()
+        # 胶囊没起来时的兜底:状态走桌面通知(Myna 的 NotifyIndicator)。
+        self._notifier = Notifier(self)
+        # 任何错误都出一声(Myna:严重错误必播 Error)。
+        self.app_state.connect("error-message-changed", self._on_error_message)
 
         # ---- Myna HUD:桌面上那个胶囊可以换成 Myna 的渲染器 ----
         if load_enabled():
@@ -355,6 +378,9 @@ class DoubaoInputApp(Gtk.Application):
             focus_loss_supported=self.focus_loss_supported(),
             focus_loss_reason=self.focus_loss_reason(),
             on_stop_on_focus_loss_changed=self.set_stop_on_focus_loss,
+            sounds=self._sounds.enabled,
+            sounds_supported=self._sounds.available,
+            on_sounds_changed=self.set_sounds,
         )
 
         # ---- Initial state: cached params? ----
@@ -369,6 +395,8 @@ class DoubaoInputApp(Gtk.Application):
             on_release=self._on_ptt_release,
             on_error=self._on_ptt_error,
             key_name=self._trigger_key,
+            cancel_key_name=CANCEL_KEY_NAME,
+            on_cancel=self._on_cancel_key,
         )
         try:
             started = self._ptt.start()
@@ -422,6 +450,7 @@ class DoubaoInputApp(Gtk.Application):
             return
         self._last_voice_at = time.monotonic()
         self._tm.handle_press()
+        self._sounds.play("start")  # Myna:按下即播,不等后端就绪
         self._start_silence_watch()
         self._start_focus_watch()
 
@@ -431,6 +460,27 @@ class DoubaoInputApp(Gtk.Application):
         self._stop_silence_watch()
         self._stop_focus_watch()
         self._tm.handle_release()
+        self._sounds.play("stop")
+
+    def _on_cancel_key(self) -> None:
+        """会话中按 ESC(可配):取消,丢弃本次内容。"""
+        if not self._tm or self.app_state.recording_state == RecordingState.IDLE:
+            return
+        logger.info("取消键:丢弃本次听写")
+        self._stop_silence_watch()
+        self._stop_focus_watch()
+        self._tm.handle_cancel()
+        self._sounds.play("stop")
+        self._indicator_notice("已取消本次听写")
+
+    def _on_error_message(self, _state, value: str) -> None:
+        if value:
+            self._sounds.play("error")
+
+    def set_sounds(self, enabled: bool) -> None:
+        """开始 / 结束 / 错误提示音开关(Myna 的 sounds)。"""
+        self._sounds.enabled = bool(enabled)
+        save_sounds(self._sounds.enabled)
 
     # ---- 焦点离开就结束(可选开关,对齐 Myna 的 Focus lost) ----
 

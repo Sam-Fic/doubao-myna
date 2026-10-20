@@ -103,6 +103,9 @@ class ControlWindow:
         focus_loss_supported: bool = False,
         focus_loss_reason: str = "",
         on_stop_on_focus_loss_changed: Optional[Callable[[bool], None]] = None,
+        sounds: bool = True,
+        sounds_supported: bool = False,
+        on_sounds_changed: Optional[Callable[[bool], None]] = None,
     ) -> None:
         self._app_state = app_state
         self._on_login = on_login_clicked
@@ -130,6 +133,9 @@ class ControlWindow:
         self._focus_loss_supported = focus_loss_supported
         self._focus_loss_reason = focus_loss_reason
         self._on_stop_on_focus_loss_changed = on_stop_on_focus_loss_changed
+        self._sounds = sounds
+        self._sounds_supported = sounds_supported
+        self._on_sounds_changed = on_sounds_changed
         self._shortcut_keycap: Optional[Gtk.Label] = None
         self._shortcut_button: Optional[Gtk.Button] = None
         self._shortcut_row = None
@@ -298,6 +304,17 @@ class ControlWindow:
         focus_row.set_sensitive(self._focus_loss_supported)
         focus_row.connect("notify::active", self._on_focus_loss_switch)
         dictation_group.add(focus_row)
+
+        # 提示音(Myna 的 sounds:开始 / 结束 / 错误)
+        sounds_row = Adw.SwitchRow(
+            title="提示音",
+            subtitle="开始 / 结束 / 错误时播放"
+            + ("" if self._sounds_supported else "（未找到 canberra-gtk-play，不会响）"),
+        )
+        sounds_row.set_active(self._sounds)
+        sounds_row.set_sensitive(self._sounds_supported)
+        sounds_row.connect("notify::active", self._on_sounds_switch)
+        dictation_group.add(sounds_row)
 
         inject_group = Adw.PreferencesGroup(title="粘贴方式")
         input_page.add(inject_group)
@@ -604,6 +621,12 @@ class ControlWindow:
         self._silence_timeout = seconds
         if self._on_silence_timeout_changed is not None:
             self._on_silence_timeout_changed(seconds)
+
+    def _on_sounds_switch(self, row, *_args) -> None:
+        active = row.get_active() if hasattr(row, "get_active") else False
+        self._sounds = bool(active)
+        if self._on_sounds_changed is not None:
+            self._on_sounds_changed(bool(active))
 
     def _on_focus_loss_switch(self, row, *_args) -> None:
         active = row.get_active() if hasattr(row, "get_active") else False

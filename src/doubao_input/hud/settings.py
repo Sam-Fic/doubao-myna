@@ -18,6 +18,7 @@ from doubao_input.doubao.config import (
     HUD_STYLE,
     INJECT_USE_SHIFT,
     SILENCE_TIMEOUT_SECS,
+    SOUNDS_ENABLED,
     STOP_ON_FOCUS_LOSS,
     TRIGGER_KEY_NAME,
     TRIGGER_MODE,
@@ -100,6 +101,14 @@ def load_trigger_mode() -> str:
 
 def save_trigger_mode(mode: str) -> None:
     set_value("trigger_mode", "toggle" if mode == "toggle" else "hold")
+
+
+def load_sounds() -> bool:
+    return bool(get("sounds", SOUNDS_ENABLED))
+
+
+def save_sounds(enabled: bool) -> None:
+    set_value("sounds", bool(enabled))
 
 
 def load_stop_on_focus_loss() -> bool:

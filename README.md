@@ -115,7 +115,7 @@ python3 -m venv .venv
 ### 设置窗口
 采用 `Adw.ApplicationWindow` 结合 `ToolbarView` 与 `HeaderBar`，内部通过 `Adw.ViewStack` 管理三个配置页。若系统缺失 libadwaita，自动降级为纯 GTK4 窗口。
 - **账号页**：管理登录状态、凭证路径及重新登录操作。
-- **输入页**：桌面快捷键（键帽展示 + 按键捕获，Esc 取消）、evdev 物理键、触发方式（按住 / 按一下）、静音自动结束秒数、焦点离开时结束（可选开关）、波形样式、粘贴快捷键（Ctrl+V / Ctrl+Shift+V）及悬浮窗组件选择。
+- **输入页**：桌面快捷键（键帽展示 + 按键捕获，Esc 取消）、evdev 物理键、触发方式（按住 / 按一下）、静音自动结束秒数、焦点离开时结束（可选开关）、提示音开关、波形样式、粘贴快捷键（Ctrl+V / Ctrl+Shift+V）及悬浮窗组件选择。
 - **诊断页**：提供麦克风自检、剪贴板链路测试及悬浮窗状态监控。
 
 ### 触发配置（与 Myna 对齐）
@@ -187,6 +187,8 @@ gnome-extensions enable myna-shell@canonical.com
 | `TRIGGER_KEY_NAME` | `"KEY_RIGHTCTRL"` | evdev 物理键名 |
 | `TRIGGER_MODE` | `"hold"` | 触发模式：`hold`（按住说话）/ `toggle`（Myna 语义） |
 | `SILENCE_TIMEOUT_SECS` | `30` | 静音自动结束秒数，`0` 为不启用 |
+| `SOUNDS_ENABLED` | `True` | 开始 / 结束 / 错误时播放提示音（系统 freedesktop 事件音） |
+| `CANCEL_KEY_NAME` | `"KEY_ESC"` | 会话中按该键取消并丢弃本次内容；设为空串则不接取消键 |
 | `STOP_ON_FOCUS_LOSS` | `False` | 焦点离开目标窗口即结束并丢弃本次内容（对齐 Myna），默认关闭 |
 | `FOCUS_CONFIRM_TICKS` | `2` | 连续几次读到焦点变化才认定（防 X11/XWayland 抖动误伤） |
 | `DESKTOP_SHORTCUT` | `""` | 桌面自定义快捷键，如 `"<Super>j"` |
@@ -258,6 +260,8 @@ systemctl --user enable --now doubao-input.service
 - 统一偏好设置存储至 `~/.config/doubao-input/settings.json`。
 - 新增可配置触发：桌面自定义快捷键（组合键）、evdev 物理键选择、Myna 式 toggle 触发、静音自动结束。
 - 空识别结果改为可恢复提示（对齐 Myna 的 “No speech detected”）。
+- 新增桌面通知兜底：胶囊不可用时状态走单条原地替换的通知（文案不含识别文本）。
+- 新增提示音（开始 / 结束 / 错误，走系统事件音）与 ESC 取消。
 - 新增 `docs/myna-parity.md`，逐项记录与 Myna 体验设计的对齐情况。
 
 ### v1.0.2 (2026-06-21)

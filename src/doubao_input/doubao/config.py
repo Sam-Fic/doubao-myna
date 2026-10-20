@@ -104,6 +104,12 @@ TRIGGER_KEY_NAME = "KEY_RIGHTCTRL"
 # hold   = 按住说话,松开即结束(豆包原生交互)
 # toggle = 按一下开始、再按一下结束(**Myna 的交互**)
 TRIGGER_MODE = "hold"
+# 开始 / 结束 / 错误时播放提示音(Myna 的 sounds)。音色走系统 freedesktop
+# 事件音,不搬运 Myna 自己的音频资源。
+SOUNDS_ENABLED = True
+# 会话中按 ESC 取消(丢弃本次内容)。空串 = 不接取消键。
+CANCEL_KEY_NAME = "KEY_ESC"
+
 # 焦点离开目标窗口就结束本次听写(Myna 的行为)。探测是 best-effort:
 # Wayland 下第三方进程读不到别的窗口的焦点,那时这个开关不生效(见 ui/focus_watch.py)。
 STOP_ON_FOCUS_LOSS = False
