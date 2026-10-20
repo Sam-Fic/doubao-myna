@@ -15,5 +15,12 @@ Environment=DISPLAY=:0
 Environment=GDK_BACKEND=wayland,x11
 Environment=PYTHONUNBUFFERED=1
 
+# 基础加固:不提权、系统目录只读、独立 /tmp。
+# 不加 ProtectHome(应用要写 ~/.config)和 RestrictAddressFamilies
+# (需要 AF_INET/AF_INET6 走 ASR 的 WSS)。
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
 [Install]
 WantedBy=default.target

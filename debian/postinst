@@ -52,7 +52,8 @@ case "$1" in
                         2>/dev/null || true
                     su -s /bin/sh "$USER_NAME" -c \
                         "'$VENV_DIR/bin/pip' install --quiet --upgrade pip && \
-                         '$VENV_DIR/bin/pip' install --quiet websockets sounddevice evdev numpy" \
+                         '$VENV_DIR/bin/pip' install --quiet \
+                         'websockets>=12,<16' 'sounddevice>=0.4.6,<0.6' 'evdev>=1.4,<2'" \
                         2>/dev/null || true
                     echo "  ✓ venv 就绪。"
                 else

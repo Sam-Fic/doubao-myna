@@ -53,11 +53,16 @@ jobs:
 
       - name: Determine tag & version
         id: meta
+        env:
+          # 经 env 传入而不是 ${{ }} 直接插值进脚本:workflow_dispatch
+          # 的自由文本 version 若含反引号/分号,插值会变成命令注入。
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            TAG="v${{ github.event.inputs.version }}"
+          if [ -n "$INPUT_VERSION" ]; then
+            TAG="v$INPUT_VERSION"
           else
-            TAG="${GITHUB_REF_NAME}"
+            TAG="$REF_NAME"
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
