@@ -51,11 +51,20 @@ def shortcut_widget(accelerator: str, empty_text: str = "未设置") -> Gtk.Widg
 
 
 def accelerator_label(accelerator: str) -> str:
-    """把 GTK accelerator 字符串(<Super>j)转成人类可读标签(Super+J 之类)。"""
+    """把 GTK accelerator 字符串(<Super>j)转成人类可读标签(Super+J 之类)。
+
+    注意:`Gtk.accelerator_parse()` 的返回元素个数跟 PyGObject 版本有关 ——
+    新版是 `(ok, keyval, mods)` 三元组,老版只有 `(keyval, mods)`。
+    所以按「取最后两个」来解包,两种都能用;解析失败就原样返回。
+    """
     if not accelerator:
         return ""
-    keyval, mods = Gtk.accelerator_parse(accelerator)
-    if keyval == 0 and not mods:
+    try:
+        parsed = Gtk.accelerator_parse(accelerator)
+        keyval, mods = parsed[-2], parsed[-1]
+    except Exception:
+        return accelerator
+    if not keyval and not mods:
         return accelerator
     return Gtk.accelerator_get_label(keyval, mods)
 
