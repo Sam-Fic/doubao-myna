@@ -29,3 +29,9 @@ msgstr "豆包語音輸入法"
 
 msgid "About %s"
 msgstr "關於%s"
+
+msgid "Language"
+msgstr "語言"
+
+msgid "Interface language: %s"
+msgstr "介面語言:%s"

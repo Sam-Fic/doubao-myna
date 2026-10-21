@@ -1,8 +1,15 @@
 """用户偏好的持久化(~/.config/doubao-input/settings.json)。
 
-目前两个键:
-  hud_enabled   悬浮窗用 Myna 胶囊还是内置悬浮窗
-  inject_shift  粘贴是 Ctrl+Shift+V 还是 Ctrl+V
+键一览:
+  hud_enabled          悬浮窗用 Myna 胶囊还是内置悬浮窗
+  inject_shift         粘贴是 Ctrl+Shift+V 还是 Ctrl+V
+  trigger_key / trigger_mode / silence_timeout   触发相关
+  sounds               提示音开关
+  stop_on_focus_loss   焦点离开时结束
+  desktop_shortcut     桌面自定义快捷键
+  hud_style            Myna 胶囊波形样式
+  language             界面语言(空串 = 跟随系统)
+  onboarding_done      首次运行向导是否已完成
 
 旧的 hud.json(只有 hud_enabled)会被自动读进来,不破坏已有配置。
 """
@@ -153,3 +160,12 @@ def load_onboarding_done() -> bool:
 
 def save_onboarding_done(done: bool = True) -> None:
     set_value("onboarding_done", bool(done))
+
+
+def load_language() -> str:
+    """界面语言代码(如 zh_CN);空串 = 跟随系统。"""
+    return str(get("language", "")).strip()
+
+
+def save_language(code: str) -> None:
+    set_value("language", str(code))

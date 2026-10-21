@@ -236,6 +236,21 @@ class DoubaoInputApp(Gtk.Application):
         parent = self._control._window if self._control else None
         show_about(self, parent, version=_app_version())
 
+    def _rebuild_onboarding(self) -> None:
+        """界面语言变了 → 把首次运行向导(如果开着)重建一遍。
+
+        向导是另一套窗口,里面的字符串同样是建时定死的,不重建就会停在旧语言。
+        """
+        if self._onboarding is None:
+            return
+        window = self._onboarding._window
+        self._onboarding = None
+        if window is not None:
+            try:
+                window.destroy()
+            except Exception as e:
+                logger.warning("onboarding rebuild failed: %s", e)
+
     def show_onboarding(self) -> None:
         """打开首次运行向导(设置窗口主菜单也能再开)。"""
         if not adw_available():
@@ -553,6 +568,7 @@ class DoubaoInputApp(Gtk.Application):
             report=lambda: diagnostics.collect(self),
             on_run_onboarding=self.show_onboarding,
             on_about=self._show_about,
+            on_language_changed=self._rebuild_onboarding,
         )
 
         # ---- Initial state: cached params? ----

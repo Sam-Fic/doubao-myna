@@ -24,6 +24,9 @@ DoubaoASRClient.swift"). Modifications from the upstream code are:
      methods and a 150 ms debounce (`MIN_PRESS_DURATION`) on top of the
      upstream `handle_toggle()` API, converting the toggle interaction
      into a push-to-hold (push-to-talk) interaction.
+  5. `login_window.py`: window title changed from "Doubao Murmur - 登录"
+     to "登录豆包" (plus the app icon), so the upstream project name is not
+     leaked into this app's UI.
 
 Everything else under `src/doubao_input/` (trigger/, inject/, ui/, hud/,
 app.py, __main__.py) is original work for this project.

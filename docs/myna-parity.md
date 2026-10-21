@@ -76,7 +76,7 @@
 
 | 设计点 | Myna Settings | 本项目 | 状态 |
 |---|---|---|---|
-| 壳 | Adw.ApplicationWindow + ToolbarView + HeaderBar + ViewSwitcher + ToastOverlay | 同 | ✅ |
+| 壳 | Adw.ApplicationWindow + ToolbarView + HeaderBar + ViewSwitcher + ToastOverlay | 同，另加 Adw.Banner（未登录提示）；主菜单用 Gio.Menu | ✅ |
 | 页签 | General / Model / Diagnostics | 账号 / 输入 / 诊断(Model 不适用:没有本地模型) | 🟡 |
 | 设置项由 schema 推导 | 是 | 手写行(键少,可接受) | 🟡 |
 | 声音开关 / 音色 / 预览 | 有(7 种音色 + 预览按钮) | ❌ 无提示音 | ❌ |

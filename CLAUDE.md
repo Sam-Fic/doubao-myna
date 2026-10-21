@@ -17,6 +17,19 @@ Full design lives in [`docs/design.md`](docs/design.md). Read it before making a
 ```
 src/doubao_input/
 ├── __main__.py            Entry: `python -m doubao_input`
+├── i18n.py                Multi-language (gettext). Source language is English;
+│                          Chinese (zh_CN / zh_TW) comes from
+│                          `locale/<lang>/LC_MESSAGES/doubao-input.po`.
+│                          `.po` is compiled to `.mo` on the fly (pure-Python
+│                          compiler inside this file) — only `.po` is committed.
+│                          Call `init()` before building any UI (done in
+│                          `__main__.main()`), then wrap strings in `_()`.
+│                          Language is picked in the hamburger menu
+│                          (control_window `_build_language_menu()` →
+│                          `win.language(<code>)` → `set_language()`: save →
+│                          `i18n.switch()` → rebuild the window, because UI
+│                          strings are frozen at build time). Persisted as
+│                          `settings.json: language` ("" = follow the system).
 ├── app.py                 GtkApplication. Wires trigger → TM → overlay/injector.
 │                          Wraps AudioCapture.start/stop to pipe RMS to the overlay.
 │                          Hides overlay+control window before paste so injected Ctrl+V
@@ -67,12 +80,18 @@ src/doubao_input/
     │                       (set_can_focus(False)). Reads RMS, draws scrolling bars,
     │                       wraps transcription text up to OVERLAY_MAX_LINES.
     │                       Only used when the Myna HUD is off or unavailable.
-    └── control_window.py   libadwaita settings window, 3 ViewStack pages
-                            (账号 / 输入 / 诊断) in Myna Settings' style:
-                            Adw.ApplicationWindow + ToolbarView + HeaderBar +
-                            ViewSwitcher + PreferencesPage/Group + SwitchRow,
-                            plus Adw.ToastOverlay for transient results. Falls
-                            back to a plain GTK4 window when Adw is missing.
+    ├── control_window.py   libadwaita settings window, 3 ViewStack pages
+    │                       (账号 / 输入 / 诊断) in Myna Settings' style:
+    │                       Adw.ApplicationWindow + ToolbarView + HeaderBar +
+    │                       ViewSwitcher + PreferencesPage/Group + SwitchRow,
+    │                       plus Adw.Banner for the login hint and Adw.ToastOverlay
+    │                       for transient results. Falls back to a plain GTK4
+    │                       window when Adw is missing.
+    ├── adw_compat.py       Shared Adw helpers with graceful degradation:
+    │                       ButtonContent (1.6+), ShortcutLabel (1.8+),
+    │                       WindowTitle (1.6+), escaped subtitles, clipboard.
+    ├── onboarding.py       4-step first-run wizard (Adw.Window + StatusPage).
+    └── shortcut_capture.py Modal key-capture dialog (Adw.Window + StatusPage).
 
 tests/probe/                Manual verification scripts (NOT pytest). P5_login.py and
                            P6_asr.py confirm Doubao login + ASR round-trip still works.

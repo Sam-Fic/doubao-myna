@@ -36,3 +36,4 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "doubao_input.login" = ["resources/*.js"]
+"doubao_input" = ["locale/*/LC_MESSAGES/*.po"]

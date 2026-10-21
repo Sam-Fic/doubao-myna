@@ -42,7 +42,9 @@ from doubao_input.doubao.config import (
     TRIGGER_MODE_CHOICES,
     get_params_path,
 )
-from doubao_input.i18n import _
+from doubao_input import i18n
+from doubao_input.i18n import LANGUAGES, _
+from doubao_input.hud.settings import save_language
 from doubao_input.ui.adw_compat import (
     HAS_ADW as _HAS_ADW,
     Adw,
@@ -141,6 +143,7 @@ class ControlWindow:
         report: Optional[Callable[[], str]] = None,
         on_run_onboarding: Optional[Callable[[], None]] = None,
         on_about: Optional[Callable[[], None]] = None,
+        on_language_changed: Optional[Callable[[], None]] = None,
     ) -> None:
         self._app_state = app_state
         self._on_login = on_login_clicked
@@ -178,6 +181,7 @@ class ControlWindow:
         self._report_view: Optional[Gtk.TextView] = None
         self._on_run_onboarding = on_run_onboarding
         self._on_about = on_about
+        self._on_language_changed = on_language_changed
         self._shortcut_widget: Optional[Gtk.Widget] = None
         self._shortcut_button: Optional[Gtk.Button] = None
         self._shortcut_row = None
@@ -210,9 +214,28 @@ class ControlWindow:
             self._window.set_visible(False)
 
     def destroy(self) -> None:
-        if self._window:
-            self._window.destroy()
-            self._window = None
+        if not self._window:
+            return
+        # 先把菜单弹层收掉:否则销毁窗口时 GTK 会警告
+        # "Finalizing GtkMenuButton ... but it still has children left"
+        # (切换界面语言会走这条重建路径,不想每次都刷一行警告)。
+        self._close_popovers(self._window)
+        self._window.destroy()
+        self._window = None
+
+    @classmethod
+    def _close_popovers(cls, widget: Gtk.Widget) -> None:
+        child = widget.get_first_child()
+        while child is not None:
+            if isinstance(child, Gtk.MenuButton):
+                popover = child.get_popover()
+                if popover is not None:
+                    try:
+                        popover.popdown()
+                    except Exception:
+                        pass
+            cls._close_popovers(child)
+            child = child.get_next_sibling()
 
     def toast(self, message: str) -> None:
         """短暂提示(libadwaita 的 toast);没有 Adw 时忽略。"""
@@ -277,8 +300,8 @@ class ControlWindow:
         switcher.set_stack(stack)
         switcher.set_policy(Adw.ViewSwitcherPolicy.WIDE)
         header.set_title_widget(switcher)
-        if self._on_run_onboarding is not None or self._on_about is not None:
-            header.pack_end(self._build_menu(win))
+        # 主菜单永远在(语言子菜单与向导/关于无关)。
+        header.pack_end(self._build_menu(win))
         toolbar.add_top_bar(header)
 
         # 内容 = Banner(登录提示)+ ViewStack,外面套 ToastOverlay。
@@ -680,7 +703,8 @@ class ControlWindow:
     def _build_menu(self, win: Gtk.Window) -> Gtk.MenuButton:
         """主菜单:Gio.Menu + Gtk.MenuButton(Adw 风格,自带键盘导航与高亮)。
 
-        文案走 i18n(源码英文,中文由 locale/*.po 提供)。
+        文案走 i18n(源码英文,中文由 locale/*.po 提供);「语言」子菜单用来
+        切换界面语言。
         """
         button = Gtk.MenuButton()
         button.set_icon_name("open-menu-symbolic")
@@ -694,6 +718,10 @@ class ControlWindow:
             action = Gio.SimpleAction.new("about", None)
             action.connect("activate", lambda *_: self._on_about())
             win.add_action(action)
+        # 语言切换:带字符串参数的动作,目标值就是语言代码。
+        language = Gio.SimpleAction.new("language", GLib.VariantType("s"))
+        language.connect("activate", self._on_language_activated)
+        win.add_action(language)
 
         menu = Gio.Menu()
         section = Gio.Menu()
@@ -702,8 +730,54 @@ class ControlWindow:
         if self._on_about is not None:
             section.append(_("About %s") % _("Doubao Voice Input"), "win.about")
         menu.append_section(None, section)
+        menu.append_section(_("Language"), self._build_language_menu())
         button.set_menu_model(menu)
         return button
+
+    def _build_language_menu(self) -> Gio.Menu:
+        """语言子菜单。
+
+        语言名一律用**各自语言自己的写法**(English / 简体中文 / 繁體中文,
+        GNOME「区域与语言」的惯例),所以这里不需要翻译;当前语言在标签前
+        加一个勾。
+
+        注:试过用 Gio.MenuItem 的 "icon" 属性(配 object-select-symbolic)
+        打勾,实测 **Gtk.PopoverMenu 根本不渲染普通条目的 icon**
+        (Image 的 visible=False、宽高 0),所以退回文本前缀。
+        """
+        submenu = Gio.Menu()
+        current = i18n.current()
+        for code, name in LANGUAGES.items():
+            item = Gio.MenuItem()
+            item.set_label(f"✓ {name}" if code == current else name)
+            item.set_action_and_target_value("win.language", GLib.Variant("s", code))
+            submenu.append_item(item)
+        return submenu
+
+    def _on_language_activated(self, _action, parameter) -> None:
+        code = parameter.get_string() if parameter is not None else ""
+        self.set_language(code)
+
+    def set_language(self, code: str) -> None:
+        """切换界面语言:记住选择 → 立即生效 → 重建界面。
+
+        界面字符串是**建窗口时**就定死的,所以只能把窗口拆了重建
+        (toast 用的是新语言,正好当切换成功的反馈)。
+        """
+        if code not in LANGUAGES:
+            return
+        save_language(code)
+        i18n.switch([code])
+        logger.info("language switched to %s", code)
+        # 首次运行向导(如果开着)是另一套窗口,让 app 去重建它。
+        if self._on_language_changed is not None:
+            try:
+                self._on_language_changed()
+            except Exception as e:
+                logger.warning("language change callback failed: %s", e)
+        self.destroy()
+        self.show()
+        self.toast(_("Interface language: %s") % LANGUAGES[code])
 
     def _on_run_onboarding_clicked(self, *_args) -> None:
         if self._on_run_onboarding is not None:

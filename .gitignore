@@ -70,3 +70,6 @@ build-dir/
 
 # IDE / agent working memory
 .codebuddy/
+
+# gettext 编译产物(.po 由 i18n 在运行时现编)
+src/doubao_input/locale/*/LC_MESSAGES/*.mo
