@@ -19,6 +19,17 @@ doubao-input (1.1.0-1) noble; urgency=medium
     input_event layout (32-bit); bounded ASR audio backlog (64MB).
   * CI: workflow_dispatch version passed via env (expression-injection
     hardening).
+  * UI polish: components moved onto libadwaita defaults — Adw.Banner login
+    hint, Gio.Menu hamburger, Adw.ShortcutLabel keycaps, real Adw.Toast,
+    wizard navigation moved to a bottom bar.
+  * i18n: hamburger gains a Language submenu (English / 简体中文 / 繁體中文,
+    stored in settings.json and reapplied on launch); source strings stay in
+    English, Chinese provided via gettext .po files.
+  * Sounds: reworked so the prompt tones still play when the desktop "Sound"
+    switch is off (direct theme-file playback via pw-play/paplay); clipboard
+    cleared after injection.
+  * Fixed a crash when a desktop shortcut is set (Gtk.accelerator_parse
+    arity mismatch in the shortcut-label helper).
 
  -- doubao-input contributors <code-dream@qq.com>  Wed, 21 Oct 2026 15:00:00 +0800
 
