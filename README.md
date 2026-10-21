@@ -291,6 +291,7 @@ systemctl --user enable --now doubao-input.service
 
 ### v1.1.0 (2026-10-21)
 - 重构设置界面，采用 libadwaita 三页布局。
+- 安全加固：凭证文件 0600 / 配置目录 0700；日志不再含识别文本；注入成功后自动清空剪贴板；登录 WebView 收紧；postinst 依赖加版本上界；systemd 用户服务基础加固（详见「安全与隐私说明」）。
 - 集成 Myna `myna-hud` 渲染器及 D-Bus 状态同步机制。
 - 替换应用图标为 Myna 官方 SVG 图标。
 - 修复 `myna-hud` 异常终止导致的 GLib 断言警告及 `EvdevPtt` 异常阻断启动的问题。

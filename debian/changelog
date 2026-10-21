@@ -1,3 +1,27 @@
+doubao-input (1.1.0-1) noble; urgency=medium
+
+  * Settings: libadwaita three-page PreferencesWindow (账号/输入/诊断).
+  * HUD: integrate Myna myna-hud renderer + D-Bus state sync
+    (com.canonical.Myna.Dictation), configurable trigger via desktop
+    custom shortcuts or evdev physical keys, silence auto-stop,
+    first-run onboarding wizard, sounds, diagnostics privacy report.
+  * Security hardening:
+    - ASR credential file 0600 + config dir 0700 (was world-readable
+      0644/0755; cookies are a live account session).
+    - Logs no longer contain transcript fragments (length only);
+      --log-file accepts bare filenames inside the config dir only.
+    - Clipboard cleared 1.5s after successful paste injection.
+    - Login WebView: developer extras only under --verbose; login
+      detection JS narrowed to the top frame.
+    - postinst: version-bounded pip deps; drop unused numpy.
+    - systemd user service: NoNewPrivileges/ProtectSystem=full/PrivateTmp.
+  * Robustness: evdev partial-event buffering + per-platform
+    input_event layout (32-bit); bounded ASR audio backlog (64MB).
+  * CI: workflow_dispatch version passed via env (expression-injection
+    hardening).
+
+ -- doubao-input contributors <code-dream@qq.com>  Wed, 21 Oct 2026 15:00:00 +0800
+
 doubao-input (1.0.2-1) noble; urgency=medium
 
   * Logo: replaced white-backed assets with transparent-background
