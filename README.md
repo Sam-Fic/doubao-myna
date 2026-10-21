@@ -1,4 +1,4 @@
-# 豆包语音输入法 Maya 界面版 for Linux
+# 豆包语音输入法 Myna 界面版 for Linux
 
 ## 项目概述
 本项目为基于豆包 Web 版语音识别能力开发的全局语音输入法，专为原生 Wayland 与 GNOME 桌面环境设计。旨在解决 `xdotool` 在 Wayland 下失效以及 `wtype` 依赖 virtual-keyboard 协议（Mutter 未实现）等兼容性问题。
