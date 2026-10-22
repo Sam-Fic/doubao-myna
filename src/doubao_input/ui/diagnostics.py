@@ -18,6 +18,8 @@ import re
 import shutil
 from datetime import datetime
 
+from doubao_input import autostart
+
 logger = logging.getLogger(__name__)
 
 #: 绝对路径一律脱敏(Myna 的 diagnostics.rs 同样处理命令行 flag 值)。
@@ -81,6 +83,8 @@ def collect(app) -> str:
     add(f"粘贴: {'Ctrl+Shift+V' if app._inject_shift else 'Ctrl+V'}")
     add(f"提示音: {'开' if app._sounds.enabled else '关'}")
     add(f"焦点离开结束: {'开' if app._stop_on_focus_loss else '关'}")
+    add(f"开机自启: {'开' if autostart.is_enabled() else '关'}"
+        f" · {autostart.backend()}")
     add("")
 
     # ---- 指示器 ----

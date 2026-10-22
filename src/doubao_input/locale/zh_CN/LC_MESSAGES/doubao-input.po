@@ -35,3 +35,24 @@ msgstr "语言"
 
 msgid "Interface language: %s"
 msgstr "界面语言:%s"
+
+msgid "Startup"
+msgstr "启动"
+
+msgid "Start on login"
+msgstr "开机自启"
+
+msgid "Runs automatically when the desktop session starts"
+msgstr "桌面会话启动时自动运行"
+
+msgid "Failed to change autostart: %s"
+msgstr "无法修改开机自启:%s"
+
+msgid "no systemd user service, and ~/.config/autostart is not writable"
+msgstr "没有 systemd 用户服务,且 ~/.config/autostart 不可写"
+
+msgid "systemctl is not available"
+msgstr "未找到 systemctl"
+
+msgid "autostart state did not change"
+msgstr "开机自启状态没有变化"

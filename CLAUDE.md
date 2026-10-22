@@ -17,6 +17,9 @@ Full design lives in [`docs/design.md`](docs/design.md). Read it before making a
 ```
 src/doubao_input/
 ├── __main__.py            Entry: `python -m doubao_input`
+├── autostart.py           Start-on-login switch: reads *both* backends (systemd
+│                          user unit + XDG autostart entry), writes *one*,
+│                          verifies by re-reading (see module docstring).
 ├── i18n.py                Multi-language (gettext). Source language is English;
 │                          Chinese (zh_CN / zh_TW) comes from
 │                          `locale/<lang>/LC_MESSAGES/doubao-input.po`.

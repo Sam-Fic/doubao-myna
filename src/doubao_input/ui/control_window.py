@@ -56,15 +56,15 @@ from doubao_input.ui.adw_compat import (
 )
 from doubao_input.ui.shortcut_capture import start_capture
 
-#: 设置窗口里可选的物理键(evdev 键名 → 显示名)
+#: 设置窗口里可选的物理键(evdev 键名 → 显示名;显示名走 i18n,源码英文)。
 TRIGGER_KEY_CHOICES = [
-    ("KEY_RIGHTCTRL", "右 Ctrl"),
-    ("KEY_LEFTCTRL", "左 Ctrl"),
-    ("KEY_RIGHTALT", "右 Alt"),
-    ("KEY_LEFTALT", "左 Alt"),
-    ("KEY_RIGHTSHIFT", "右 Shift"),
-    ("KEY_LEFTMETA", "左 Super"),
-    ("KEY_RIGHTMETA", "右 Super"),
+    ("KEY_RIGHTCTRL", "Right Ctrl"),
+    ("KEY_LEFTCTRL", "Left Ctrl"),
+    ("KEY_RIGHTALT", "Right Alt"),
+    ("KEY_LEFTALT", "Left Alt"),
+    ("KEY_RIGHTSHIFT", "Right Shift"),
+    ("KEY_LEFTMETA", "Left Super"),
+    ("KEY_RIGHTMETA", "Right Super"),
     ("KEY_SCROLLLOCK", "Scroll Lock"),
     ("KEY_PAUSE", "Pause"),
     ("KEY_F12", "F12"),
@@ -72,10 +72,10 @@ TRIGGER_KEY_CHOICES = [
     ("KEY_COMPOSE", "Menu"),
 ]
 
-#: 胶囊波形样式(Myna 的 hud-style 取值;Default 排第一)
+#: 胶囊波形样式(Myna 的 hud-style 取值;Default 排第一;显示名走 i18n,源码英文)。
 HUD_STYLE_CHOICES = [
-    ("bar", "Default(电平条)"),
-    ("ribbon", "Ribbon(波浪)"),
+    ("bar", "Default (level bar)"),
+    ("ribbon", "Ribbon (wave)"),
     ("vumeter", "VU meter"),
 ]
 
@@ -138,6 +138,10 @@ class ControlWindow:
         sounds: bool = True,
         sounds_supported: bool = False,
         on_sounds_changed: Optional[Callable[[bool], None]] = None,
+        autostart: bool = False,
+        autostart_supported: bool = True,
+        autostart_reason: str = "",
+        on_autostart_changed: Optional[Callable[[bool], Any]] = None,
         on_desktop_shortcut_conflicts: Optional[Callable[[str], Any]] = None,
         last_error: Optional[Callable[[], str]] = None,
         report: Optional[Callable[[], str]] = None,
@@ -174,6 +178,12 @@ class ControlWindow:
         self._sounds = sounds
         self._sounds_supported = sounds_supported
         self._on_sounds_changed = on_sounds_changed
+        self._autostart = autostart
+        self._autostart_supported = autostart_supported
+        self._autostart_reason = autostart_reason
+        self._on_autostart_changed = on_autostart_changed
+        # 失败回拨开关时用来挡掉连锁的 notify::active
+        self._autostart_updating = False
         self._on_desktop_shortcut_conflicts = on_desktop_shortcut_conflicts
         self._last_error = last_error
         self._last_error_row = None
@@ -284,7 +294,7 @@ class ControlWindow:
 
     def _ensure_adw_window(self) -> None:
         win = Adw.ApplicationWindow(application=self._app)
-        win.set_title("豆包语音输入法")
+        win.set_title(_("Doubao Voice Input"))
         win.set_default_size(560, 640)
         # 图标走 hicolor 主题名(.deb 装的是 scalable SVG);源码运行没装
         # 图标时,GTK 只是不显示,不会报错。
@@ -307,7 +317,7 @@ class ControlWindow:
         # 内容 = Banner(登录提示)+ ViewStack,外面套 ToastOverlay。
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self._banner = Adw.Banner()
-        self._banner.set_button_label("登录")
+        self._banner.set_button_label(_("Sign in"))
         self._banner.set_use_markup(False)
         self._banner.connect("button-clicked", lambda *_: self._on_login())
         content.append(self._banner)
@@ -321,21 +331,24 @@ class ControlWindow:
 
         # --- 账号 ---
         account = Adw.PreferencesPage()
-        account.set_title("账号")
+        account.set_title(_("Account"))
         account.set_icon_name("avatar-default-symbolic")
         group = Adw.PreferencesGroup(
-            title="豆包账号",
-            description="识别由豆包的网页服务完成;登录凭证只保存在本机。",
+            title=_("Doubao Account"),
+            description=_(
+                "Recognition is done by Doubao's web service; login "
+                "credentials are stored only on this machine."
+            ),
         )
         account.add(group)
 
-        self._account_row = Adw.ActionRow(title="登录状态", subtitle="检测中…")
+        self._account_row = Adw.ActionRow(title=_("Login status"), subtitle=_("Detecting…"))
         self._account_icon = Gtk.Image.new_from_icon_name(
             _icon_name("content-loading-symbolic", "emblem-synchronizing-symbolic")
         )
         self._account_icon.set_pixel_size(16)
         self._account_row.add_prefix(self._account_icon)
-        self._login_button = Gtk.Button.new_with_label("登录豆包")
+        self._login_button = Gtk.Button.new_with_label(_("Sign in to Doubao"))
         self._login_button.set_valign(Gtk.Align.CENTER)
         self._login_button.add_css_class("suggested-action")
         self._login_button.connect("clicked", lambda *_: self._on_login())
@@ -343,11 +356,11 @@ class ControlWindow:
         self._account_row.set_activatable_widget(self._login_button)
         group.add(self._account_row)
 
-        creds = Adw.ActionRow(title="凭证文件", subtitle=str(get_params_path()))
+        creds = Adw.ActionRow(title=_("Credential file"), subtitle=str(get_params_path()))
         creds.set_subtitle_selectable(True)
-        copy_path = Gtk.Button.new_with_label("复制")
+        copy_path = Gtk.Button.new_with_label(_("Copy"))
         copy_path.set_valign(Gtk.Align.CENTER)
-        copy_path.set_tooltip_text("复制凭证文件路径")
+        copy_path.set_tooltip_text(_("Copy credential file path"))
         copy_path.connect("clicked", lambda *_: self._copy_creds_path())
         creds.add_suffix(copy_path)
         creds.set_activatable_widget(copy_path)
@@ -355,18 +368,21 @@ class ControlWindow:
 
         # --- 输入 ---
         input_page = Adw.PreferencesPage()
-        input_page.set_title("输入")
+        input_page.set_title(_("Input"))
         input_page.set_icon_name("input-keyboard-symbolic")
         trigger_group = Adw.PreferencesGroup(
-            title="触发",
-            description="桌面快捷键可以带 Super/Ctrl/Alt 组合键;物理键由 evdev 直接监听。",
+            title=_("Trigger"),
+            description=_(
+                "Desktop shortcuts may include Super/Ctrl/Alt combos; the "
+                "physical key is monitored directly by evdev."
+            ),
         )
         input_page.add(trigger_group)
 
         # 桌面快捷键(Myna 的做法:绑到 D-Bus Toggle)
         self._shortcut_row = Adw.ActionRow(
-            title="桌面快捷键",
-            subtitle="写进桌面的自定义快捷键,命令是 D-Bus Toggle",
+            title=_("Desktop shortcut"),
+            subtitle=_("Writes a custom desktop shortcut whose command is D-Bus Toggle"),
         )
         self._shortcut_widget = _shortcut_widget(self._desktop_shortcut)
         self._shortcut_widget.set_valign(Gtk.Align.CENTER)
@@ -381,10 +397,10 @@ class ControlWindow:
 
         # 物理键(evdev)
         key_row = Adw.ComboRow(
-            title="物理键",
-            subtitle="直接监听 /dev/input/event*,不需要桌面配合",
+            title=_("Physical key"),
+            subtitle=_("Monitors /dev/input/event* directly; no desktop cooperation needed"),
         )
-        key_model = Gtk.StringList.new([name for _, name in TRIGGER_KEY_CHOICES])
+        key_model = Gtk.StringList.new([_(name) for _key, name in TRIGGER_KEY_CHOICES])
         key_row.set_model(key_model)
         for index, (value, _name) in enumerate(TRIGGER_KEY_CHOICES):
             if value == self._trigger_key:
@@ -395,20 +411,20 @@ class ControlWindow:
 
         # 触发模式
         mode_row = Adw.ComboRow(
-            title="触发方式",
+            title=_("Trigger mode"),
         )
-        mode_row.set_model(Gtk.StringList.new([name for _, name in TRIGGER_MODE_CHOICES]))
+        mode_row.set_model(Gtk.StringList.new([_(name) for _key, name in TRIGGER_MODE_CHOICES]))
         mode_row.set_selected(1 if self._trigger_mode == "toggle" else 0)
         mode_row.connect("notify::selected", self._on_trigger_mode_selected)
         trigger_group.add(mode_row)
         self._trigger_mode_row = mode_row
 
-        dictation_group = Adw.PreferencesGroup(title="听写")
+        dictation_group = Adw.PreferencesGroup(title=_("Dictation"))
         input_page.add(dictation_group)
 
         silence_row = Adw.SpinRow(
-            title="静音自动结束(秒)",
-            subtitle="0 = 不自动结束(对齐 Myna 的 silence-timeout)",
+            title=_("Auto-stop on silence (seconds)"),
+            subtitle=_("0 = never auto-stop (matches Myna's silence-timeout)"),
         )
         silence_row.set_numeric(True)
         adjustment = Gtk.Adjustment(
@@ -429,8 +445,9 @@ class ControlWindow:
 
         # 焦点离开就结束(可选;探测不到焦点时置灰并说明原因)
         focus_row = Adw.SwitchRow(
-            title="焦点离开时结束",
-            subtitle=self._focus_loss_reason or "Myna 的行为:焦点一离开就丢弃本次内容",
+            title=_("Stop on focus loss"),
+            subtitle=self._focus_loss_reason
+            or _("Myna behavior: drops the current dictation as soon as focus leaves"),
         )
         focus_row.set_active(self._stop_on_focus_loss)
         focus_row.set_sensitive(self._focus_loss_supported)
@@ -439,41 +456,41 @@ class ControlWindow:
 
         # 提示音(Myna 的 sounds:开始 / 结束 / 错误)
         sounds_row = Adw.SwitchRow(
-            title="提示音",
-            subtitle="开始 / 结束 / 错误时播放"
-            + ("" if self._sounds_supported else "（找不到可用的播放工具，不会响）"),
+            title=_("Sound effects"),
+            subtitle=_("Played on start / stop / error")
+            + ("" if self._sounds_supported else _("（no usable player found; silent）")),
         )
         sounds_row.set_active(self._sounds)
         sounds_row.set_sensitive(self._sounds_supported)
         sounds_row.connect("notify::active", self._on_sounds_switch)
         dictation_group.add(sounds_row)
 
-        inject_group = Adw.PreferencesGroup(title="粘贴方式")
+        inject_group = Adw.PreferencesGroup(title=_("Paste method"))
         input_page.add(inject_group)
         shift_row = Adw.SwitchRow(
-            title="使用 Ctrl+Shift+V",
-            subtitle="开启:终端也能粘贴;关闭:仅 GUI 应用可用的 Ctrl+V",
+            title=_("Use Ctrl+Shift+V"),
+            subtitle=_("On: pasting also works in terminals; Off: only Ctrl+V in GUI apps"),
         )
         shift_row.set_active(self._inject_shift)
         shift_row.connect("notify::active", self._on_inject_shift_switch)
         inject_group.add(shift_row)
 
-        hud_group = Adw.PreferencesGroup(title="悬浮窗")
+        hud_group = Adw.PreferencesGroup(title=_("Floating window"))
         input_page.add(hud_group)
         if self._on_hud_toggle is not None:
             self._hud_row = Adw.SwitchRow(
-                title="使用 Myna 悬浮胶囊",
-                subtitle="由 Myna 的 myna-hud 绘制;关闭则用内置悬浮窗",
+                title=_("Use Myna floating capsule"),
+                subtitle=_("Rendered by Myna's myna-hud; off falls back to the built-in floating window"),
             )
             self._hud_row.set_active(self._hud_enabled)
             self._hud_row.connect("notify::active", self._on_hud_switch)
             hud_group.add(self._hud_row)
 
         style_row = Adw.ComboRow(
-            title="波形样式",
-            subtitle="Myna 的 hud-style(仅对 Myna 胶囊生效)",
+            title=_("Waveform style"),
+            subtitle=_("Myna's hud-style (only affects the Myna capsule)"),
         )
-        style_row.set_model(Gtk.StringList.new([name for _, name in HUD_STYLE_CHOICES]))
+        style_row.set_model(Gtk.StringList.new([_(name) for _key, name in HUD_STYLE_CHOICES]))
         for index, (value, _name) in enumerate(HUD_STYLE_CHOICES):
             if value == self._hud_style:
                 style_row.set_selected(index)
@@ -483,15 +500,29 @@ class ControlWindow:
         # 波形样式只影响 Myna 胶囊:没开胶囊时置灰,免得用户以为能改内置窗。
         style_row.set_sensitive(self._hud_enabled)
 
+        # 开机自启:状态直接问后端(systemd user service / XDG autostart),
+        # 不在 settings.json 里另存一份 —— 用户可能用 systemctl 自己改过。
+        startup_group = Adw.PreferencesGroup(title=_("Startup"))
+        input_page.add(startup_group)
+        autostart_row = Adw.SwitchRow(
+            title=_("Start on login"),
+            subtitle=self._autostart_reason
+            or _("Runs automatically when the desktop session starts"),
+        )
+        autostart_row.set_active(self._autostart)
+        autostart_row.set_sensitive(self._autostart_supported)
+        autostart_row.connect("notify::active", self._on_autostart_switch)
+        startup_group.add(autostart_row)
+
         # --- 诊断 ---
         diag = Adw.PreferencesPage()
-        diag.set_title("诊断")
+        diag.set_title(_("Diagnostics"))
         diag.set_icon_name("preferences-system-symbolic")
-        self_group = Adw.PreferencesGroup(title="自检")
+        self_group = Adw.PreferencesGroup(title=_("Self-check"))
         diag.add(self_group)
 
-        mic_row = Adw.ActionRow(title="麦克风", subtitle="采集 3 秒并输出 RMS 峰值")
-        mic_button = Gtk.Button.new_with_label("检查")
+        mic_row = Adw.ActionRow(title=_("Microphone"), subtitle=_("Capture 3 seconds and print the RMS peak"))
+        mic_button = Gtk.Button.new_with_label(_("Check"))
         mic_button.set_valign(Gtk.Align.CENTER)
         mic_button.connect("clicked", lambda *_: self._on_check_mic())
         mic_row.add_suffix(mic_button)
@@ -499,9 +530,9 @@ class ControlWindow:
         self_group.add(mic_row)
 
         paste_row = Adw.ActionRow(
-            title="粘贴链路", subtitle="注入一段固定文本,验证 wl-copy + uinput"
+            title=_("Paste pipeline"), subtitle=_("Injects a fixed text to verify wl-copy + uinput")
         )
-        paste_button = Gtk.Button.new_with_label("测试")
+        paste_button = Gtk.Button.new_with_label(_("Test"))
         paste_button.set_valign(Gtk.Align.CENTER)
         if self._on_test_inject is not None:
             paste_button.connect("clicked", lambda *_: self._on_test_inject())
@@ -511,20 +542,20 @@ class ControlWindow:
         paste_row.set_activatable_widget(paste_button)
         self_group.add(paste_row)
 
-        status_group = Adw.PreferencesGroup(title="状态")
+        status_group = Adw.PreferencesGroup(title=_("Status"))
         diag.add(status_group)
-        self._last_error_row = Adw.ActionRow(title="最近错误", subtitle="无")
+        self._last_error_row = Adw.ActionRow(title=_("Latest error"), subtitle=_("None"))
         status_group.add(self._last_error_row)
 
-        self._hud_status_row = Adw.ActionRow(title="悬浮窗", subtitle="未启用")
+        self._hud_status_row = Adw.ActionRow(title=_("Floating window"), subtitle=_("Disabled"))
         status_group.add(self._hud_status_row)
         self._refresh_last_error()
         self._refresh_hud_status()
 
-        quit_group = Adw.PreferencesGroup(title="应用")
+        quit_group = Adw.PreferencesGroup(title=_("Application"))
         diag.add(quit_group)
-        quit_row = Adw.ActionRow(title="退出", subtitle="停止监听并关闭悬浮窗")
-        quit_button = Gtk.Button.new_with_label("退出")
+        quit_row = Adw.ActionRow(title=_("Quit"), subtitle=_("Stop listening and close the floating window"))
+        quit_button = Gtk.Button.new_with_label(_("Quit"))
         quit_button.set_valign(Gtk.Align.CENTER)
         quit_button.add_css_class("destructive-action")
         quit_button.connect("clicked", lambda *_: self._on_quit())
@@ -534,8 +565,11 @@ class ControlWindow:
 
         # ---- 诊断报告(Myna 的隐私诊断:不含音频/识别文本/文件路径) ----
         report_group = Adw.PreferencesGroup(
-            title="诊断报告",
-            description="报告不含音频、识别文本或任何文件路径(路径一律替换为 [redacted])。",
+            title=_("Diagnostic report"),
+            description=_(
+                "The report contains no audio, transcribed text, or any "
+                "file paths (paths are replaced with [redacted])."
+            ),
         )
         diag.add(report_group)
 
@@ -543,21 +577,21 @@ class ControlWindow:
         # 组标题行会因为描述文字换行而变高,组里的按钮默认会被拉成一样高 ——
         # 显式垂直居中,按钮保持默认高度。
         report_buttons.set_valign(Gtk.Align.CENTER)
-        refresh_button = Gtk.Button.new_with_label("刷新")
+        refresh_button = Gtk.Button.new_with_label(_("Refresh"))
         refresh_button.set_valign(Gtk.Align.CENTER)
-        refresh_button.set_tooltip_text("重新检查本机与各组件状态")
+        refresh_button.set_tooltip_text(_("Re-check local machine and component status"))
         refresh_button.connect("clicked", lambda *_: self._refresh_report())
         report_buttons.append(refresh_button)
-        copy_button = Gtk.Button.new_with_label("复制")
+        copy_button = Gtk.Button.new_with_label(_("Copy"))
         copy_button.set_valign(Gtk.Align.CENTER)
-        copy_button.set_tooltip_text("复制隐私安全的诊断报告到剪贴板")
+        copy_button.set_tooltip_text(_("Copy the privacy-safe diagnostic report to the clipboard"))
         copy_button.connect("clicked", lambda *_: self._copy_report())
         report_buttons.append(copy_button)
         try:
             report_group.set_header_suffix(report_buttons)
         except Exception:
             # 老版本 libadwaita 没有 header-suffix,就退化成一行。
-            actions = Adw.ActionRow(title="操作")
+            actions = Adw.ActionRow(title=_("Actions"))
             actions.add_suffix(report_buttons)
             report_group.add(actions)
 
@@ -587,9 +621,9 @@ class ControlWindow:
         report_group.add(scrolled)
         self._refresh_report()
 
-        stack.add_titled_with_icon(account, "account", "账号", "avatar-default-symbolic")
-        stack.add_titled_with_icon(input_page, "input", "输入", "input-keyboard-symbolic")
-        stack.add_titled_with_icon(diag, "diagnostics", "诊断", "preferences-system-symbolic")
+        stack.add_titled_with_icon(account, "account", _("Account"), "avatar-default-symbolic")
+        stack.add_titled_with_icon(input_page, "input", _("Input"), "input-keyboard-symbolic")
+        stack.add_titled_with_icon(diag, "diagnostics", _("Diagnostics"), "preferences-system-symbolic")
 
         self._window = win
 
@@ -597,7 +631,7 @@ class ControlWindow:
 
     def _ensure_legacy_window(self) -> None:
         win = Gtk.ApplicationWindow(application=self._app) if self._app is not None else Gtk.Window()
-        win.set_title("豆包语音输入法")
+        win.set_title(_("Doubao Voice Input"))
         win.set_default_size(440, 420)
         win.set_destroy_with_parent(True)
         win.set_icon_name(_ICON_NAME)
@@ -617,16 +651,16 @@ class ControlWindow:
         self._status_label.set_selectable(True)
         box.append(self._status_label)
 
-        login_btn = Gtk.Button.new_with_label("登录豆包")
+        login_btn = Gtk.Button.new_with_label(_("Sign in to Doubao"))
         login_btn.add_css_class("suggested-action")
         login_btn.connect("clicked", lambda *_: self._on_login())
         box.append(login_btn)
 
-        check_btn = Gtk.Button.new_with_label("检查麦克风 (输出 RMS)")
+        check_btn = Gtk.Button.new_with_label(_("Check microphone (RMS output)"))
         check_btn.connect("clicked", lambda *_: self._on_check_mic())
         box.append(check_btn)
 
-        test_btn = Gtk.Button.new_with_label("测试粘贴 (注入 'hello 测试 123')")
+        test_btn = Gtk.Button.new_with_label(_("Test paste (inject 'hello 测试 123')"))
         if self._on_test_inject is not None:
             test_btn.connect("clicked", lambda *_: self._on_test_inject())
         else:
@@ -636,7 +670,7 @@ class ControlWindow:
         # 悬浮窗开关(Myna 胶囊 / 内置悬浮窗)
         if self._on_hud_toggle is not None:
             hud_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-            hud_name = Gtk.Label(label="使用 Myna 悬浮胶囊")
+            hud_name = Gtk.Label(label=_("Use Myna floating capsule"))
             hud_name.set_xalign(0.0)
             hud_name.set_hexpand(True)
             hud_switch = Gtk.Switch()
@@ -654,18 +688,32 @@ class ControlWindow:
             box.append(self._hud_status_label)
             self._refresh_hud_status()
 
+        # 开机自启(与 Adw 路径共用同一个回调,失败同样回拨 + toast)
+        if self._on_autostart_changed is not None:
+            auto_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+            auto_name = Gtk.Label(label=_("Start on login"))
+            auto_name.set_xalign(0.0)
+            auto_name.set_hexpand(True)
+            auto_switch = Gtk.Switch()
+            auto_switch.set_active(self._autostart)
+            auto_switch.set_sensitive(self._autostart_supported)
+            auto_switch.set_valign(Gtk.Align.CENTER)
+            auto_switch.connect("state-set", self._on_autostart_switch)
+            auto_box.append(auto_name)
+            auto_box.append(auto_switch)
+            box.append(auto_box)
+
         help = Gtk.Label()
         help.set_xalign(0.0)
         help.set_wrap(True)
         help.add_css_class("dim-label")
         help.set_markup(
-            "<b>注意</b>\n"
-            "• 终端里需手动 Ctrl+Shift+V\n"
-            f"• 凭证保存在 {get_params_path()}\n"
+            _("<b>Note</b>\n• In terminal, manually use Ctrl+Shift+V\n• Credentials stored at %s\n")
+            % get_params_path()
         )
         box.append(help)
 
-        quit_btn = Gtk.Button.new_with_label("退出")
+        quit_btn = Gtk.Button.new_with_label(_("Quit"))
         quit_btn.add_css_class("destructive-action")
         quit_btn.connect("clicked", lambda *_: self._on_quit())
         box.append(quit_btn)
@@ -795,23 +843,26 @@ class ControlWindow:
         binding = self._desktop_shortcut
         # 快捷键(或「未设置」)直接写进副标题,键帽不再单独显示。
         self._shortcut_widget.set_visible(False)
-        self._shortcut_button.set_label("更改" if binding else "设置")
+        self._shortcut_button.set_label(_("Change") if binding else _("Set"))
         if not self._desktop_shortcut_supported:
             _set_subtitle(
                 self._shortcut_row,
-                "当前桌面不支持写入自定义快捷键(需要 GNOME 或 Xfce)",
+                _(
+                    "Current desktop does not support writing custom "
+                    "shortcuts (needs GNOME or Xfce)"
+                ),
             )
             self._shortcut_button.set_sensitive(False)
         else:
-            base = "写进桌面的自定义快捷键,命令是 D-Bus Toggle"
-            head = _accelerator_label(binding) if binding else "未设置"
+            base = _("Writes a custom desktop shortcut whose command is D-Bus Toggle")
+            head = _accelerator_label(binding) if binding else _("Not set")
             _set_subtitle(self._shortcut_row, f"{head} · {base}")
 
     def _copy_creds_path(self) -> None:
         if _copy_text(str(get_params_path())):
-            self.toast("凭证路径已复制")
+            self.toast(_("Credential path copied"))
         else:
-            self.toast("复制失败")
+            self.toast(_("Copy failed"))
 
     def _on_shortcut_button(self, *_args) -> None:
         start_capture(self._window, self._offer_shortcut)
@@ -830,18 +881,18 @@ class ControlWindow:
 
         owner, reserved = conflicts[0]
         if reserved:
-            self.toast(f"{accelerator} 被桌面保留({owner}),换一个吧")
+            self.toast(_("%s is reserved by the desktop (%s); pick another") % (accelerator, owner))
             return
         if not _HAS_ADW or self._window is None:
-            self.toast(f"{accelerator} 已被「{owner}」占用")
+            self.toast(_("%s is already taken by “%s”") % (accelerator, owner))
             return
 
         dialog = Adw.AlertDialog.new(
-            "替换快捷键?",
-            f"{accelerator} 已被「{owner}」使用。替换会把它从那里移除。",
+            _("Replace shortcut?"),
+            _("%s is already used by “%s”. Replacing removes it from there.") % (accelerator, owner),
         )
-        dialog.add_response("cancel", "取消")
-        dialog.add_response("replace", "替换")
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("replace", _("Replace"))
         dialog.set_response_appearance("replace", Adw.ResponseAppearance.DESTRUCTIVE)
         dialog.set_default_response("cancel")
         dialog.set_close_response("cancel")
@@ -859,9 +910,9 @@ class ControlWindow:
         if ok:
             self._desktop_shortcut = accelerator
             self._refresh_shortcut_row()
-            self.toast(f"快捷键已设为 {accelerator}")
+            self.toast(_("Shortcut set to %s") % accelerator)
         else:
-            self.toast(f"快捷键设置失败:{error}")
+            self.toast(_("Failed to set shortcut: %s") % error)
 
     # ---- 触发 / 听写设置 ----
 
@@ -906,6 +957,43 @@ class ControlWindow:
         if self._on_stop_on_focus_loss_changed is not None:
             self._on_stop_on_focus_loss_changed(bool(active))
 
+    def _on_autostart_switch(self, row, *args) -> bool:
+        """开机自启开关。写后端是可能失败的(systemd 不可用、目录不可写),
+        失败要把开关拨回去并告诉用户原因 —— 否则界面显示「开」而实际没开。
+
+        Gtk.Switch 的 state-set 在状态翻转**之前**触发,所以新值取信号参数;
+        回拨统一丢进 idle,等当前这轮信号走完再动,免得和 GTK 自己的状态
+        更新打架。
+        """
+        if self._autostart_updating:
+            return False
+        if isinstance(row, Gtk.Switch):
+            active = bool(args[0]) if args else row.get_active()
+        else:
+            active = row.get_active()
+        ok, error = True, ""
+        if self._on_autostart_changed is not None:
+            try:
+                ok, error = self._on_autostart_changed(bool(active))
+            except Exception as e:
+                logger.exception("autostart toggle failed")
+                ok, error = False, str(e)
+        if ok:
+            self._autostart = bool(active)
+            return False
+        self._autostart = not active
+        self._autostart_updating = True
+        GLib.idle_add(self._revert_autostart_switch, row, not active)
+        self.toast(_("Failed to change autostart: %s") % error)
+        return False
+
+    def _revert_autostart_switch(self, row, active: bool) -> bool:
+        try:
+            row.set_active(bool(active))
+        finally:
+            self._autostart_updating = False
+        return GLib.SOURCE_REMOVE
+
     def _on_hud_style_selected(self, row, _param) -> None:
         index = row.get_selected()
         if index < 0 or index >= len(HUD_STYLE_CHOICES):
@@ -919,12 +1007,12 @@ class ControlWindow:
         if self._last_error_row is None:
             return
         if self._last_error is None:
-            _set_subtitle(self._last_error_row, "无")
+            _set_subtitle(self._last_error_row, _("None"))
             return
         try:
             _set_subtitle(self._last_error_row, self._last_error())
         except Exception as e:
-            _set_subtitle(self._last_error_row, f"未知 ({e})")
+            _set_subtitle(self._last_error_row, _("Unknown (%s)") % e)
 
     # ---- 诊断报告(Myna 的隐私诊断) ----
 
@@ -935,7 +1023,7 @@ class ControlWindow:
             text = self._report() if self._report is not None else ""
         except Exception as e:
             logger.warning("diagnostics report failed: %s", e)
-            text = f"诊断报告生成失败: {e}"
+            text = _("Failed to generate diagnostic report: %s") % e
         self._report_view.get_buffer().set_text(text)
 
     def _copy_report(self) -> None:
@@ -944,31 +1032,31 @@ class ControlWindow:
         buffer = self._report_view.get_buffer()
         text = buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter(), False)
         if _copy_text(text):
-            self.toast("诊断报告已复制到剪贴板")
+            self.toast(_("Diagnostic report copied to clipboard"))
         else:
-            self.toast("复制失败")
+            self.toast(_("Copy failed"))
 
     def _refresh_hud_status(self) -> None:
         if self._hud_status_row is not None:
             if self._hud_status is None:
-                _set_subtitle(self._hud_status_row, "未启用")
+                _set_subtitle(self._hud_status_row, _("Disabled"))
                 return
             try:
                 _set_subtitle(self._hud_status_row, self._hud_status())
             except Exception as e:
-                _set_subtitle(self._hud_status_row, f"悬浮窗状态未知 ({e})")
+                _set_subtitle(self._hud_status_row, _("Floating window status unknown (%s)") % e)
             return
         if not self._hud_status_label:
             return
         if self._hud_status is None:
-            self._hud_status_label.set_text("未启用")
+            self._hud_status_label.set_text(_("Disabled"))
             return
         try:
             self._hud_status_label.set_markup(
                 f"<small>{GLib.markup_escape_text(self._hud_status())}</small>"
             )
         except Exception as e:
-            self._hud_status_label.set_text(f"悬浮窗状态未知 ({e})")
+            self._hud_status_label.set_text(_("Floating window status unknown (%s)") % e)
 
     def _on_status_changed(self, *_args) -> None:
         self._refresh_status()
@@ -978,25 +1066,25 @@ class ControlWindow:
         if status == LoginStatus.LOGGED_IN:
             # emblem-ok-symbolic 只有 Yaru 有,Adwaita 主题下会画成白块,
             # 所以优先用 object-select-symbolic。
-            text, icon = "已登录", _icon_name(
+            text, icon = _("Signed in"), _icon_name(
                 "object-select-symbolic", "emblem-ok-symbolic"
             )
         elif status == LoginStatus.NOT_LOGGED_IN:
-            text, icon = "未登录 · 点击「登录豆包」完成一次登录", "dialog-warning-symbolic"
+            text, icon = _("Not signed in · click “Sign in to Doubao” to log in once"), "dialog-warning-symbolic"
         else:
-            text, icon = "检测中…", _icon_name(
+            text, icon = _("Detecting…"), _icon_name(
                 "content-loading-symbolic", "emblem-synchronizing-symbolic"
             )
 
         if self._status_label is not None:  # 退化路径
             if status == LoginStatus.LOGGED_IN:
-                self._status_label.set_markup("状态:<b>已登录</b>  ✅")
+                self._status_label.set_markup(_("Status: <b>Signed in</b>  ✅"))
             elif status == LoginStatus.NOT_LOGGED_IN:
                 self._status_label.set_markup(
-                    "状态:<b>未登录</b>  ❌\n请点击「登录豆包」完成一次登录。"
+                    _("Status: <b>Not signed in</b>  ❌\nClick “Sign in to Doubao” to log in once.")
                 )
             else:
-                self._status_label.set_markup("状态:<b>检测中…</b>")
+                self._status_label.set_markup(_("Status: <b>Detecting…</b>"))
             return
 
         if self._account_row is None:
@@ -1004,7 +1092,7 @@ class ControlWindow:
         _set_subtitle(self._account_row, text)
         if self._login_button is not None:
             self._login_button.set_label(
-                "重新登录" if status == LoginStatus.LOGGED_IN else "登录豆包"
+                _("Sign in again") if status == LoginStatus.LOGGED_IN else _("Sign in to Doubao")
             )
             # 强调色只留给「还没登录、需要用户去登录」的状态;
             # 已登录后的「重新登录」是次要操作,不该再抢眼。
@@ -1017,7 +1105,9 @@ class ControlWindow:
         # 没登录时在窗口顶部挂一条可点的横幅(Adw.Banner),别让用户去猜。
         if self._banner is not None:
             if status == LoginStatus.NOT_LOGGED_IN:
-                self._banner.set_title("尚未登录豆包,按住右 Ctrl 不会触发识别")
+                self._banner.set_title(
+                    _("Not signed in to Doubao yet; holding Right Ctrl won't trigger recognition")
+                )
                 self._banner.set_revealed(True)
             else:
                 self._banner.set_revealed(False)

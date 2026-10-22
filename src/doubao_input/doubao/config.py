@@ -132,10 +132,10 @@ TRIGGER_KEY_CHOICES = [
     ("KEY_COMPOSE", "Menu"),
 ]
 
-# 触发方式(hold / toggle → 显示名)。设置窗口与首次运行向导共用同一张表。
+# 触发方式(hold / toggle → 显示名;显示名走 i18n,源码英文)。设置窗口与首次运行向导共用同一张表。
 TRIGGER_MODE_CHOICES = [
-    ("hold", "按住说话(松开即结束)"),
-    ("toggle", "按一下开始 / 再按一下结束"),
+    ("hold", "Hold to talk (release to stop)"),
+    ("toggle", "Tap to start / tap to stop"),
 ]
 
 # 焦点离开目标窗口就结束本次听写(Myna 的行为)。探测是 best-effort:

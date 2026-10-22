@@ -22,6 +22,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import GLib, Gio, Gtk  # type: ignore
 
+from doubao_input import autostart
 from doubao_input.doubao.app_state import AppState, LoginStatus, RecordingState
 from doubao_input.doubao.asr_client import ASRClient
 from doubao_input.doubao.audio_capture import AudioCapture
@@ -563,6 +564,10 @@ class DoubaoInputApp(Gtk.Application):
             sounds=self._sounds.enabled,
             sounds_supported=self._sounds.available,
             on_sounds_changed=self.set_sounds,
+            autostart=self.autostart_enabled(),
+            autostart_supported=self.autostart_supported(),
+            autostart_reason=self.autostart_reason(),
+            on_autostart_changed=self.set_autostart,
             on_desktop_shortcut_conflicts=self.desktop_shortcut_conflicts,
             last_error=self._last_error,
             report=lambda: diagnostics.collect(self),
@@ -669,6 +674,48 @@ class DoubaoInputApp(Gtk.Application):
         """开始 / 结束 / 错误提示音开关(Myna 的 sounds)。"""
         self._sounds.enabled = bool(enabled)
         save_sounds(self._sounds.enabled)
+
+    # ---- 开机自启(XDG autostart / systemd user unit,见 autostart.py) ----
+
+    @staticmethod
+    def autostart_enabled() -> bool:
+        """现在到底是不是「登录即自启」—— 直接读后端,不看缓存。"""
+        try:
+            return autostart.is_enabled()
+        except Exception as e:
+            logger.warning("autostart state unreadable: %s", e)
+            return False
+
+    @staticmethod
+    def autostart_supported() -> bool:
+        try:
+            return autostart.supported()
+        except Exception as e:
+            logger.warning("autostart unsupported: %s", e)
+            return False
+
+    @staticmethod
+    def autostart_reason() -> str:
+        try:
+            return autostart.reason()
+        except Exception:
+            return ""
+
+    def set_autostart(self, enabled: bool) -> tuple[bool, str]:
+        """开机自启开关。返回 (是否成功, 失败原因) —— 失败时控制窗口会把
+        开关拨回去,免得界面显示「开」而下次登录其实不启动。"""
+        try:
+            ok, error = autostart.set_enabled(bool(enabled))
+        except Exception as e:
+            logger.exception("autostart toggle crashed")
+            return False, str(e)
+        logger.info(
+            "autostart: want=%s ok=%s%s",
+            "on" if enabled else "off",
+            ok,
+            f" error={error}" if error else "",
+        )
+        return ok, error
 
     # ---- 焦点离开就结束(可选开关,对齐 Myna 的 Focus lost) ----
 

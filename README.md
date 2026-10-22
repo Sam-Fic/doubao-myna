@@ -30,7 +30,7 @@
 - **悬浮状态窗**：默认集成 Myna 的 `myna-hud`（libadwaita + GPU 波形渲染）。若未安装，自动降级为内置胶囊窗口（18px 圆角、呼吸透明度、流光闪烁动效，纯白粗体文本确保可读性）。
 - **现代化设置界面**：基于 libadwaita 构建三页 PreferencesWindow（账号 / 输入 / 诊断），采用标准组件库。
 - **多语言界面**：源码语言为英文，简体 / 繁体中文通过 gettext 翻译文件（`locale/zh_CN`、`locale/zh_TW`）补充；汉堡菜单里带「语言」子菜单可随时切换（选择记入 `settings.json`，重启后仍生效）；目前主菜单已接入，其余文案将逐步迁移。
-- **后台常驻运行**：通过 `systemd --user` 实现开机自启，支持单实例运行及窗口唤起。
+- **后台常驻运行**：设置窗口「输入 → 启动」提供**开机自启开关**（后台走 `systemd --user` 服务；没装 systemd 的机器回退到 `~/.config/autostart` 桌面条目），支持单实例运行及窗口唤起。
 - **凭证本地持久化**：登录状态及凭证文件存储于 `~/.config/doubao-input/asr_params.json`，支持跨会话复用。
 - **免 Root 运行**：仅需将当前用户加入 `input` 用户组（`.deb` 安装脚本自动处理）。
 
@@ -61,7 +61,7 @@ sudo apt install ./doubao-input_1.0.2-1_all.deb
 
 # 2. 重新登录系统（使 input 组权限生效），随后启动
 doubao-input
-# 或配置开机自启
+# 或在设置窗口「输入 → 启动」打开「开机自启」开关（命令行等价做法:）
 systemctl --user enable --now doubao-input.service
 ```
 
@@ -133,7 +133,7 @@ python3 -m venv .venv
 | 快捷键捕获 | `Adw.Window` + `Adw.StatusPage`（图标 + 提示），Esc 取消 |
 
 - **账号页**：管理登录状态、凭证路径（可一键复制）及重新登录操作。
-- **输入页**：桌面快捷键（键帽展示 + 按键捕获，Esc 取消）、evdev 物理键、触发方式（按住 / 按一下）、静音自动结束秒数、焦点离开时结束（可选开关）、提示音开关、波形样式、粘贴快捷键（Ctrl+V / Ctrl+Shift+V）及悬浮窗组件选择。
+- **输入页**：桌面快捷键（键帽展示 + 按键捕获，Esc 取消）、evdev 物理键、触发方式（按住 / 按一下）、静音自动结束秒数、焦点离开时结束（可选开关）、提示音开关、波形样式、粘贴快捷键（Ctrl+V / Ctrl+Shift+V）、开机自启及悬浮窗组件选择。
 - **诊断页**：提供麦克风自检、剪贴板链路测试、悬浮窗状态监控、最近错误记录（含时间），以及隐私安全的诊断报告（可刷新 / 复制；不含音频、识别文本或文件路径，路径一律替换为 `[redacted]`）。
 
 ### 触发配置（与 Myna 对齐）
@@ -235,6 +235,7 @@ gnome-extensions enable myna-shell@canonical.com
 src/doubao_input/
 ├── __main__.py            # 程序入口
 ├── app.py                 # GtkApplication 生命周期管理
+├── autostart.py           # 开机自启开关（systemd user unit / XDG autostart）
 ├── doubao/                # 豆包逆向核心（ASR、音频采集、凭证管理）
 ├── trigger/evdev_ptt.py   # 物理按键监听（evdev，键可配）
 ├── trigger/desktop_shortcut.py  # 桌面自定义快捷键（GNOME/Xfce，走 D-Bus Toggle）
@@ -267,8 +268,9 @@ src/doubao_input/
 # 构建 .deb 包
 bash packaging/build-deb.sh
 
-# 安装与自启
+# 安装（.deb 装完开机自启默认是开的，可在设置窗口「输入 → 启动」里关掉）
 sudo dpkg -i doubao-input_*.deb
+# 自启开关的命令行等价做法
 systemctl --user enable --now doubao-input.service
 ```
 
