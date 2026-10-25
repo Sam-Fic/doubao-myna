@@ -37,6 +37,7 @@ from doubao_input.doubao.config import (
     HUD_STYLE,
     INJECT_USE_SHIFT,
     SILENCE_TIMEOUT_SECS,
+    TRIGGER_KEY_CHOICES,
     TRIGGER_KEY_NAME,
     TRIGGER_MODE,
     TRIGGER_MODE_CHOICES,
@@ -56,23 +57,8 @@ from doubao_input.ui.adw_compat import (
 )
 from doubao_input.ui.shortcut_capture import start_capture
 
-#: 设置窗口里可选的物理键(evdev 键名 → 显示名;显示名走 i18n,源码英文)。
-TRIGGER_KEY_CHOICES = [
-    ("KEY_RIGHTCTRL", "Right Ctrl"),
-    ("KEY_LEFTCTRL", "Left Ctrl"),
-    ("KEY_RIGHTALT", "Right Alt"),
-    ("KEY_LEFTALT", "Left Alt"),
-    ("KEY_RIGHTSHIFT", "Right Shift"),
-    ("KEY_LEFTMETA", "Left Super"),
-    ("KEY_RIGHTMETA", "Right Super"),
-    ("KEY_SCROLLLOCK", "Scroll Lock"),
-    ("KEY_PAUSE", "Pause"),
-    ("KEY_F12", "F12"),
-    ("KEY_F13", "F13"),
-    ("KEY_COMPOSE", "Menu"),
-]
-
 #: 胶囊波形样式(Myna 的 hud-style 取值;Default 排第一;显示名走 i18n,源码英文)。
+#: (物理键那张表在 doubao/config.py —— 那是唯一来源。)
 HUD_STYLE_CHOICES = [
     ("bar", "Default (level bar)"),
     ("ribbon", "Ribbon (wave)"),

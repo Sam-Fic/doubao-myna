@@ -363,7 +363,7 @@ class OnboardingWindow:
         current = pages.index(self._stack.get_visible_child_name())
         self._back_button.set_sensitive(current > 0)
         last = current == len(pages) - 1
-        self._next_button.set_label("完成" if last else "下一步")
+        self._next_button.set_label(_("Finish") if last else _("Next"))
         if pages[current] == "login":
             # 未登录不让过(Myna 的 Components 步同样要求就绪)
             self._next_button.set_sensitive(
@@ -377,14 +377,14 @@ class OnboardingWindow:
             return
         status = self._app_state.login_status
         if status == LoginStatus.LOGGED_IN:
-            _set_subtitle(self._login_row, "已登录")
-            self._login_button.set_label("重新登录")
+            _set_subtitle(self._login_row, _("Signed in"))
+            self._login_button.set_label(_("Sign in again"))
         elif status == LoginStatus.NOT_LOGGED_IN:
-            _set_subtitle(self._login_row, "未登录 · 请先完成一次登录")
-            self._login_button.set_label("登录豆包")
+            _set_subtitle(self._login_row, _("Not signed in · please sign in once first"))
+            self._login_button.set_label(_("Sign in to Doubao"))
         else:
-            _set_subtitle(self._login_row, "检测中…")
-            self._login_button.set_label("登录豆包")
+            _set_subtitle(self._login_row, _("Detecting…"))
+            self._login_button.set_label(_("Sign in to Doubao"))
         # 强调色只留给「还没登录、需要用户去登录」的状态;
         # 已登录后的「重新登录」是次要操作,不该再抢眼。
         if status == LoginStatus.NOT_LOGGED_IN:
@@ -411,8 +411,8 @@ class OnboardingWindow:
         if self._on_trigger_key_set is not None:
             self._on_trigger_key_set(value)
         self._refresh_welcome()
-        label = dict(TRIGGER_KEY_CHOICES)[value]
-        self._toast(f"物理键已设为 {label}")
+        label = _(dict(TRIGGER_KEY_CHOICES)[value])
+        self._toast(_("Physical key set to %s") % label)
 
     def _on_trigger_mode_selected(self, row, _param) -> None:
         index = row.get_selected()
@@ -425,8 +425,8 @@ class OnboardingWindow:
         if self._on_trigger_mode_set is not None:
             self._on_trigger_mode_set(value)
         self._refresh_welcome()
-        label = dict(TRIGGER_MODE_CHOICES)[value]
-        self._toast(f"触发方式: {label}")
+        label = _(dict(TRIGGER_MODE_CHOICES)[value])
+        self._toast(_("Trigger mode: %s") % label)
 
     def _capture(self) -> None:
         start_capture(self._window, self._apply_shortcut)

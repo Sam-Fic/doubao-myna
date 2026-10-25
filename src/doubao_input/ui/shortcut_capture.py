@@ -21,23 +21,28 @@ gi.require_version("Gtk", "4.0")
 
 from gi.repository import Gdk, Gtk  # type: ignore
 
+from doubao_input.i18n import _
 from doubao_input.ui.adw_compat import (
     HAS_ADW as _HAS_ADW,
     Adw,
     window_title as _window_title,
 )
 
-PROMPT = "按下新的快捷键…"
-HINT = "用 Ctrl / Alt / Super 加上另一个键，或单独的功能键。Esc 取消。"
+PROMPT = "Press a new shortcut…"
+HINT = "Use Ctrl / Alt / Super plus another key, or a function key on its own. Esc cancels."
 
 
 def start_capture(
     parent: Optional[Gtk.Window],
     on_result: Callable[[str], None],
-    prompt: str = PROMPT,
-    hint: str = HINT,
+    prompt: Optional[str] = None,
+    hint: Optional[str] = None,
 ) -> None:
     """弹一个模态小窗等用户按键;`on_result(accelerator)` 或什么都不调(取消)。"""
+    # 默认文案在这里翻译,不在模块级翻译 —— 常量在 import 时就固化,
+    # 那时 i18n.init() 还没跑。
+    prompt = _(PROMPT) if prompt is None else prompt
+    hint = _(HINT) if hint is None else hint
     if _HAS_ADW:
         win = _adw_window(parent, prompt, hint, on_result)
     else:
@@ -60,13 +65,13 @@ def _adw_window(
     if parent is not None:
         win.set_transient_for(parent)
     win.set_modal(True)
-    win.set_title("设置快捷键")
+    win.set_title(_("Set Shortcut"))
     win.set_default_size(420, 320)
 
     toolbar = Adw.ToolbarView()
 
     header = Adw.HeaderBar()
-    header.set_title_widget(_window_title("设置快捷键"))
+    header.set_title_widget(_window_title(_("Set Shortcut")))
     # 右上角本来就有 X(关闭),不再放「取消」按钮;Esc 也能取消。
     toolbar.add_top_bar(header)
 
@@ -90,7 +95,7 @@ def _gtk_window(
     if parent is not None:
         win.set_transient_for(parent)
     win.set_modal(True)
-    win.set_title("设置快捷键")
+    win.set_title(_("Set Shortcut"))
     win.set_default_size(420, 170)
 
     box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
@@ -104,7 +109,7 @@ def _gtk_window(
     hint_label.add_css_class("dim-label")
     hint_label.set_wrap(True)
     box.append(hint_label)
-    cancel = Gtk.Button(label="取消")
+    cancel = Gtk.Button(label=_("Cancel"))
     cancel.connect("clicked", lambda *_: win.close())
     box.append(cancel)
     win.set_child(box)

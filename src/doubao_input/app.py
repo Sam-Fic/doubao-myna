@@ -61,6 +61,7 @@ from doubao_input.hud.settings import (
     save_trigger_mode,
 )
 from doubao_input.hud.wire import IDLE, LOADING, NOTICE, RECORDING, STATUS_EMPTY
+from doubao_input.i18n import _
 from doubao_input.inject.injector import Injector
 from doubao_input.trigger.desktop_shortcut import DesktopShortcut
 from doubao_input.trigger.evdev_ptt import EvdevPtt
@@ -214,15 +215,15 @@ class DoubaoInputApp(Gtk.Application):
         以前写死"按住右 Ctrl",用户改了键或已经登录之后就文不对题。
         """
         if self.app_state.login_status != LoginStatus.LOGGED_IN:
-            return "豆包输入法已启动 · 请先在控制窗口登录豆包"
+            return _("Doubao input is ready · sign in from the control window first")
         shortcut = self.desktop_shortcut()
         if shortcut:
             # 桌面快捷键走 D-Bus Toggle,语义就是"按一下开始/再按一下结束"。
-            return f"已就绪 · 按 {shortcut} 开始,再按一次结束"
-        label = dict(TRIGGER_KEY_CHOICES).get(self._trigger_key, self._trigger_key)
+            return _("Ready · press %s to start, press again to stop") % shortcut
+        label = _(dict(TRIGGER_KEY_CHOICES).get(self._trigger_key, self._trigger_key))
         if self._trigger_mode == "toggle":
-            return f"已就绪 · 按「{label}」开始,再按一次结束"
-        return f"已就绪 · 按住「{label}」说话,松开即输入"
+            return _("Ready · press “%s” to start, press again to stop") % label
+        return _("Ready · hold “%s” to talk, release to paste") % label
 
     def _maybe_show_onboarding(self) -> bool:
         if load_onboarding_done():
@@ -326,18 +327,18 @@ class DoubaoInputApp(Gtk.Application):
         self._use_hud = False
 
     def _hud_status(self) -> str:
-        return self._hud.renderer_status() if self._hud is not None else "未启用"
+        return self._hud.renderer_status() if self._hud is not None else _("Disabled")
 
     def _last_error(self) -> str:
         """诊断页显示的最近错误(标题 + 本地时间)。"""
         if self._hud is None:
-            return "无"
+            return _("None")
         headline, _detail, micros = self._hud.last_error()
         if not headline:
-            return "无"
+            return _("None")
         if micros:
             stamp = time.strftime("%m-%d %H:%M", time.localtime(micros / 1_000_000))
-            return f"{headline}（{stamp}）"
+            return f"{headline} ({stamp})"
         return headline
 
     def desktop_shortcut_conflicts(self, accelerator: str) -> list[tuple[str, bool]]:
@@ -522,7 +523,7 @@ class DoubaoInputApp(Gtk.Application):
 
         tm.on_show_login = self._show_login
         tm.on_overlay_show = lambda: self._indicator_show(
-            LOADING, "正在启动语音识别…"
+            LOADING, _("Starting speech recognition…")
         )
         tm.on_overlay_hide = self._indicator_hide
         tm.on_overlay_update = lambda text: self._indicator_text(text)
@@ -633,10 +634,10 @@ class DoubaoInputApp(Gtk.Application):
 
     def _not_logged_in(self) -> None:
         if self._use_hud and self._hud is not None:
-            self._hud.notice("请先在控制窗口登录豆包")
+            self._hud.notice(_("Sign in from the control window to start dictating"))
         elif self._overlay is not None:
-            self._overlay.set_text("请先在控制窗口完成登录")
-            self._overlay.show("未登录")
+            self._overlay.set_text(_("Finish signing in from the control window"))
+            self._overlay.show(_("Not signed in"))
 
     def _start_session(self) -> None:
         if not self._tm:
@@ -664,7 +665,7 @@ class DoubaoInputApp(Gtk.Application):
         self._stop_focus_watch()
         self._tm.handle_cancel()
         self._sounds.play("stop")
-        self._indicator_notice("已取消本次听写")
+        self._indicator_notice(_("Dictation cancelled"))
 
     def _on_error_message(self, _state, value: str) -> None:
         if value:
@@ -765,7 +766,7 @@ class DoubaoInputApp(Gtk.Application):
             if self._tm is not None:
                 # Myna 的语义:焦点丢失时**丢弃**已识别的文本,不注入。
                 self._tm.handle_cancel()
-            self._indicator_notice("焦点已离开,本次未输入")
+            self._indicator_notice(_("Focus left the window; nothing was typed"))
             return GLib.SOURCE_REMOVE
         self._focus_change_count = 0
         return GLib.SOURCE_CONTINUE
@@ -841,9 +842,11 @@ class DoubaoInputApp(Gtk.Application):
             logger.info("_do_paste: injector.inject returned %s", ok)
             if not ok:
                 # Myna 的原则:失败要作为本次的错误上报,绝不静默丢字。
-                self._indicator_notice("粘贴失败,文字仍在剪贴板,可手动 Ctrl+Shift+V")
+                self._indicator_notice(
+                    _("Paste failed; the text is still on the clipboard — press Ctrl+Shift+V")
+                )
                 if self._control is not None:
-                    self._control.toast("粘贴失败,文字仍在剪贴板")
+                    self._control.toast(_("Paste failed; the text is still on the clipboard"))
             else:
                 # 注入成功后清空剪贴板:识别文本不再留在系统剪贴板
                 # (剪贴板管理器历史、下一次误粘贴都不会带上它)。
@@ -881,9 +884,9 @@ class DoubaoInputApp(Gtk.Application):
         """Diagnostic: inject a fixed string via the same code path the
         voice pipeline uses. Used by the 「测试粘贴」 button so the user
         can verify wl-copy + uinput Ctrl+V without logging in first."""
-        logger.info("_test_inject: clicked 测试粘贴 button")
+        logger.info("_test_inject: clicked test-paste button")
         if self._control is not None:
-            self._control.toast("正在注入 'hello 测试 123'…")
+            self._control.toast(_("Injecting the test string now…"))
         # Use the same focus-management code path as _do_paste so we
         # can be confident the test matches production behaviour.
         self._do_paste("hello 测试 123\n")
@@ -903,7 +906,7 @@ class DoubaoInputApp(Gtk.Application):
             self.app_state.login_status = LoginStatus.LOGGED_IN
             logger.info("logged in as %s", nickname)
             if self._control is not None:
-                self._control.toast(f"已登录:{nickname or '豆包账号'}")
+                self._control.toast(_("Signed in: %s") % (nickname or _("Doubao account")))
             # Extract params after a short delay, then close the WebView.
             GLib.timeout_add(800, self._extract_and_close_login)
 
@@ -941,10 +944,10 @@ class DoubaoInputApp(Gtk.Application):
     def _check_mic(self) -> None:
         """3-second mic test: open stream, push RMS to the indicator, then close."""
         if self._use_hud and self._hud is not None:
-            self._hud.flash(RECORDING, "麦克风测试中…", 4000)
+            self._hud.flash(RECORDING, _("Testing the microphone…"), 4000)
         else:
-            self._overlay.show("麦克风测试中…")
-            self._overlay.set_text("请对麦克风说话")
+            self._overlay.show(_("Testing the microphone…"))
+            self._overlay.set_text(_("Please speak into the microphone"))
 
         captured: list[float] = []
         cap = self._audio_capture
@@ -958,7 +961,7 @@ class DoubaoInputApp(Gtk.Application):
         try:
             cap.start(on_audio_data=lambda b: None)
         except Exception as e:
-            self._overlay.set_text(f"麦克风启动失败: {e}")
+            self._overlay.set_text(_("Failed to start the microphone: %s") % e)
             GLib.timeout_add(1500, lambda: self._overlay.hide() or False)
             return
 
@@ -968,9 +971,9 @@ class DoubaoInputApp(Gtk.Application):
             if captured:
                 peak = max(captured)
                 avg = sum(captured) / len(captured)
-                message = f"测试完成  peak={peak:.2f}  avg={avg:.3f}"
+                message = _("Test complete  peak=%0.2f  avg=%0.3f") % (peak, avg)
             else:
-                message = "测试完成(无数据)"
+                message = _("Test complete (no data)")
             if self._use_hud and self._hud is not None:
                 self._hud.flash(RECORDING, message, 1500)
             else:

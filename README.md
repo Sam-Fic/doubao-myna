@@ -16,8 +16,7 @@
 ![Logo](src/doubao_input/resources/logo.svg)
 
 **控制窗口**
-应用程序主面板（v1.1.0 起采用 libadwaita 三页布局：账号 / 输入 / 诊断）。
-![Control window](docs/images/control-window.png)
+应用程序主面板（v1.1.0 起采用 libadwaita 三页布局：账号 / 输入 / 诊断）。![Control window](docs/images/control-window.png)
 
 ---
 
@@ -29,7 +28,7 @@
 - **中文输入优化**：采用剪贴板写入配合模拟 Ctrl+V 粘贴机制，避免逐键输入导致的延迟。
 - **悬浮状态窗**：默认集成 Myna 的 `myna-hud`（libadwaita + GPU 波形渲染）。若未安装，自动降级为内置胶囊窗口（18px 圆角、呼吸透明度、流光闪烁动效，纯白粗体文本确保可读性）。
 - **现代化设置界面**：基于 libadwaita 构建三页 PreferencesWindow（账号 / 输入 / 诊断），采用标准组件库。
-- **多语言界面**：源码语言为英文，简体 / 繁体中文通过 gettext 翻译文件（`locale/zh_CN`、`locale/zh_TW`）补充；汉堡菜单里带「语言」子菜单可随时切换（选择记入 `settings.json`，重启后仍生效）；目前主菜单已接入，其余文案将逐步迁移。
+- **多语言界面**：源码语言为英文，简体 / 繁体中文通过 gettext 翻译文件（`locale/zh_CN`、`locale/zh_TW`）补充；汉堡菜单里带「语言」子菜单可随时切换（选择记入 `settings.json`，重启后仍生效）；设置窗口、向导、快捷键窗、悬浮窗与桌面通知的文案已全部接入。
 - **后台常驻运行**：设置窗口「输入 → 启动」提供**开机自启开关**（后台走 `systemd --user` 服务；没装 systemd 的机器回退到 `~/.config/autostart` 桌面条目），支持单实例运行及窗口唤起。
 - **凭证本地持久化**：登录状态及凭证文件存储于 `~/.config/doubao-input/asr_params.json`，支持跨会话复用。
 - **免 Root 运行**：仅需将当前用户加入 `input` 用户组（`.deb` 安装脚本自动处理）。
@@ -305,6 +304,13 @@ systemctl --user enable --now doubao-input.service
 
 ## 更新日志
 完整记录请参阅 [`debian/changelog`](debian/changelog)。
+
+### v1.1.1 (2026-10-25)
+- **界面文案全部可翻译**：v1.1.0 只迁移了主菜单，窗口里大部分文案仍是写死的中文，切换语言后不生效。本版把设置窗口、首次运行向导、快捷键捕获窗、内置悬浮窗与桌面通知全部改成英文源码 + gettext 目录，简体 / 繁体中文现有 157 条译文，覆盖全部 142 条界面字符串。
+- 修复**物理键名称有两份表且不同步**：`doubao/config.py` 里还是中文显示名、`ui/control_window.py` 里已改英文，导致设置页下拉与启动提示说法不一致；现在只保留 `config.py` 一份。
+- 新增**开机自启开关**（输入 → 启动）：状态直接读后端（`systemd --user` 服务或 `~/.config/autostart`），不另存缓存；写入失败（无 systemd、目录不可写）会把开关拨回去并提示原因。
+- 诊断报告新增开机自启状态与所用后端。
+- 修复快捷键捕获窗的默认提示在 `i18n.init()` 之前就被固化、导致翻译不生效的问题。
 
 ### v1.1.0 (2026-10-21)
 - 重构设置界面，采用 libadwaita 三页布局。

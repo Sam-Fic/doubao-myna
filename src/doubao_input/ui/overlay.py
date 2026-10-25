@@ -43,6 +43,8 @@ import cairo  # for cairo.ImageSurface used in Gdk.Texture rendering
 gi.require_version("Gtk", "4.0")
 from gi.repository import GLib, Gdk, Gtk  # type: ignore
 
+from doubao_input.i18n import _
+
 logger = logging.getLogger(__name__)
 
 # ----- Geometry -----
@@ -113,10 +115,10 @@ class Overlay:
 
     # ---- public API ----
 
-    def show(self, status: str = "聆听中…") -> None:
+    def show(self, status: Optional[str] = None) -> None:
         self._ensure_window()
         self._text = ""
-        self._status_text = status
+        self._status_text = _(status or "Listening…")
         self._refresh_label()
         if not self._visible:
             self._window.set_visible(True)

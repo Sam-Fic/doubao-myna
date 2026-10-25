@@ -8,45 +8,477 @@
 
 msgid ""
 msgstr ""
-"Project-Id-Version: doubao-input 1.1.0\n"
+"Project-Id-Version: doubao-input 1.1.1\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-21 00:00+0000\n"
-"PO-Revision-Date: 2026-10-21 00:00+0000\n"
+"POT-Creation-Date: 2026-10-25 00:00+0000\n"
+"PO-Revision-Date: 2026-10-25 00:00+0000\n"
 "Language: zh_CN\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-msgid "Main Menu"
-msgstr "主菜单"
+msgid ""
+msgstr "Project-Id-Version: doubao-input 1.1.1\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2026-10-21 00:00+0000\nPO-Revision-Date: 2026-10-21 00:00+0000\nLanguage: zh_CN\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\n"
 
-msgid "Run Setup Wizard…"
-msgstr "运行设置向导…"
+msgid "\nRecognition is done by Doubao's web service; login credentials are stored only on this machine and never sent to third parties."
+msgstr "\n识别由豆包的网页服务完成;登录凭证只保存在本机,不会发给第三方。"
 
-msgid "Doubao Voice Input"
-msgstr "豆包语音输入法"
+msgid "%s is already taken by “%s”"
+msgstr "%s 已被「%s」占用"
+
+msgid "%s is already used by “%s”. Replacing removes it from there."
+msgstr "%s 已被「%s」使用。替换会把它从那里移除。"
+
+msgid "%s is reserved by the desktop (%s); pick another"
+msgstr "%s 被桌面保留(%s),换一个吧"
+
+msgid "0 = never auto-stop (matches Myna's silence-timeout)"
+msgstr "0 = 不自动结束(对齐 Myna 的 silence-timeout)"
+
+msgid "<b>Note</b>\n• In terminal, manually use Ctrl+Shift+V\n• Credentials stored at %s\n"
+msgstr "<b>注意</b>\n• 终端里需手动 Ctrl+Shift+V\n• 凭证保存在 %s\n"
 
 msgid "About %s"
 msgstr "关于%s"
 
-msgid "Language"
-msgstr "语言"
+msgid "Account"
+msgstr "账号"
+
+msgid "Actions"
+msgstr "操作"
+
+msgid "Application"
+msgstr "应用"
+
+msgid "Auto-stop on silence (seconds)"
+msgstr "静音自动结束(秒)"
+
+msgid "Back"
+msgstr "上一步"
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Capture 3 seconds and print the RMS peak"
+msgstr "采集 3 秒并输出 RMS 峰值"
+
+msgid "Change"
+msgstr "更改"
+
+msgid "Check"
+msgstr "检查"
+
+msgid "Check microphone (RMS output)"
+msgstr "检查麦克风 (输出 RMS)"
+
+msgid "Clear"
+msgstr "清除"
+
+msgid "Connecting…"
+msgstr "正在连接…"
+
+msgid "Copy"
+msgstr "复制"
+
+msgid "Copy credential file path"
+msgstr "复制凭证文件路径"
+
+msgid "Copy failed"
+msgstr "复制失败"
+
+msgid "Copy the privacy-safe diagnostic report to the clipboard"
+msgstr "复制隐私安全的诊断报告到剪贴板"
+
+msgid "Credential file"
+msgstr "凭证文件"
+
+msgid "Credential path copied"
+msgstr "凭证路径已复制"
+
+msgid "Current desktop does not support writing custom shortcuts (needs GNOME or Xfce)"
+msgstr "当前桌面不支持写入自定义快捷键(需要 GNOME 或 Xfce)"
+
+msgid "Current status"
+msgstr "当前状态"
+
+msgid "Default (level bar)"
+msgstr "Default(电平条)"
+
+msgid "Desktop shortcut"
+msgstr "桌面快捷键"
+
+msgid "Desktop shortcuts may include Super/Ctrl/Alt combos; the physical key is monitored directly by evdev."
+msgstr "桌面快捷键可以带 Super/Ctrl/Alt 组合键;物理键由 evdev 直接监听。"
+
+msgid "Desktop shortcuts support combos like &lt;Super&gt;j; the physical key is monitored directly by evdev."
+msgstr "桌面快捷键支持 &lt;Super&gt;j 这类组合键;物理键则由 evdev 直接监听。"
+
+msgid "Detecting…"
+msgstr "检测中…"
+
+msgid "Diagnostic report"
+msgstr "诊断报告"
+
+msgid "Diagnostic report copied to clipboard"
+msgstr "诊断报告已复制到剪贴板"
+
+msgid "Diagnostics"
+msgstr "诊断"
+
+msgid "Dictation"
+msgstr "听写"
+
+msgid "Dictation cancelled"
+msgstr "已取消本次听写"
+
+msgid "Disabled"
+msgstr "未启用"
+
+msgid "Doubao Account"
+msgstr "豆包账号"
+
+msgid "Doubao Dictation"
+msgstr "豆包听写"
+
+msgid "Doubao Voice Input"
+msgstr "豆包语音输入法"
+
+msgid "Doubao account"
+msgstr "豆包账号"
+
+msgid "Doubao input is ready · sign in from the control window first"
+msgstr "豆包输入法已启动 · 请先在控制窗口登录豆包"
+
+msgid "Failed to change autostart: %s"
+msgstr "无法修改开机自启:%s"
+
+msgid "Failed to generate diagnostic report: %s"
+msgstr "诊断报告生成失败: %s"
+
+msgid "Failed to set shortcut: %s"
+msgstr "快捷键设置失败: %s"
+
+msgid "Failed to start the microphone: %s"
+msgstr "麦克风启动失败: %s"
+
+msgid "Falls back to the built-in floating window; to get Myna's original placement, run bash scripts/install-gnome-extension.sh and re-login."
+msgstr "会退回内置的悬浮窗;想拿到 Myna 原版的定位,再跑 bash scripts/install-gnome-extension.sh 并注销重登"
+
+msgid "Finish"
+msgstr "完成"
+
+msgid "Finish signing in from the control window"
+msgstr "请先在控制窗口完成登录"
+
+msgid "Floating capsule"
+msgstr "悬浮胶囊"
+
+msgid "Floating window"
+msgstr "悬浮窗"
+
+msgid "Floating window status unknown (%s)"
+msgstr "悬浮窗状态未知 (%s)"
+
+msgid "Focus left the window; nothing was typed"
+msgstr "焦点已离开,本次未输入"
+
+msgid "Hold to talk (release to stop)"
+msgstr "按住说话(松开即结束)"
+
+msgid "Injecting the test string now…"
+msgstr "正在注入 'hello 测试 123'…"
+
+msgid "Injects a fixed text to verify wl-copy + uinput"
+msgstr "注入一段固定文本,验证 wl-copy + uinput"
+
+msgid "Input"
+msgstr "输入"
+
+msgid "Install command"
+msgstr "安装命令"
 
 msgid "Interface language: %s"
 msgstr "界面语言:%s"
 
-msgid "Startup"
-msgstr "启动"
+msgid "Language"
+msgstr "语言"
 
-msgid "Start on login"
-msgstr "开机自启"
+msgid "Latest error"
+msgstr "最近错误"
+
+msgid "Left Alt"
+msgstr "左 Alt"
+
+msgid "Left Ctrl"
+msgstr "左 Ctrl"
+
+msgid "Left Super"
+msgstr "左 Super"
+
+msgid "Listening…"
+msgstr "聆听中…"
+
+msgid "Login status"
+msgstr "登录状态"
+
+msgid "Main Menu"
+msgstr "主菜单"
+
+msgid "Microphone"
+msgstr "麦克风"
+
+msgid "Monitors /dev/input/event* directly; no desktop cooperation needed"
+msgstr "直接监听 /dev/input/event*,不需要桌面配合"
+
+msgid "Myna behavior: drops the current dictation as soon as focus leaves"
+msgstr "Myna 的行为:焦点一离开就丢弃本次内容"
+
+msgid "Myna's hud-style (only affects the Myna capsule)"
+msgstr "Myna 的 hud-style(仅对 Myna 胶囊生效)"
+
+msgid "Neither xdotool nor xprop found, and GNOME Shell's Eval interface is unavailable"
+msgstr "未找到 xdotool / xprop,且 GNOME Shell 的 Eval 接口不可用"
+
+msgid "Next"
+msgstr "下一步"
+
+msgid "None"
+msgstr "无"
+
+msgid "Not set"
+msgstr "未设置"
+
+msgid "Not signed in"
+msgstr "未登录"
+
+msgid "Not signed in to Doubao yet; holding Right Ctrl won't trigger recognition"
+msgstr "尚未登录豆包,按住右 Ctrl 不会触发识别"
+
+msgid "Not signed in · click “Sign in to Doubao” to log in once"
+msgstr "未登录 · 点击「登录豆包」完成一次登录"
+
+msgid "Not signed in · please sign in once first"
+msgstr "未登录 · 请先完成一次登录"
+
+msgid "On Wayland another process cannot read the focus of other windows (needs an X11 session or a GNOME Shell extension)"
+msgstr "Wayland 下第三方进程读不到其它窗口的焦点(需 X11 会话或 GNOME Shell 扩展)"
+
+msgid "On: pasting also works in terminals; Off: only Ctrl+V in GUI apps"
+msgstr "开启:终端也能粘贴;关闭:仅 GUI 应用可用的 Ctrl+V"
+
+msgid "Optional: Myna's myna-hud draws the recording indicator."
+msgstr "可选项:用 Myna 的 myna-hud 绘制录音指示器。"
+
+msgid "Paste failed; the text is still on the clipboard"
+msgstr "粘贴失败,文字仍在剪贴板"
+
+msgid "Paste failed; the text is still on the clipboard — press Ctrl+Shift+V"
+msgstr "粘贴失败,文字仍在剪贴板,可手动 Ctrl+Shift+V"
+
+msgid "Paste method"
+msgstr "粘贴方式"
+
+msgid "Paste pipeline"
+msgstr "粘贴链路"
+
+msgid "Physical key"
+msgstr "物理键"
+
+msgid "Physical key set to %s"
+msgstr "物理键已设为 %s"
+
+msgid "Played on start / stop / error"
+msgstr "开始 / 结束 / 错误时播放"
+
+msgid "Please speak into the microphone"
+msgstr "请对麦克风说话"
+
+msgid "Press a new shortcut…"
+msgstr "按下新的快捷键…"
+
+msgid "Quit"
+msgstr "退出"
+
+msgid "Re-check local machine and component status"
+msgstr "重新检查本机与各组件状态"
+
+msgid "Ready · hold “%s” to talk, release to paste"
+msgstr "已就绪 · 按住「%s」说话,松开即输入"
+
+msgid "Ready · press %s to start, press again to stop"
+msgstr "已就绪 · 按 %s 开始,再按一次结束"
+
+msgid "Ready · press “%s” to start, press again to stop"
+msgstr "已就绪 · 按「%s」开始,再按一次结束"
+
+msgid "Recognition is done by Doubao's web service; login credentials are stored only on this machine."
+msgstr "识别由豆包的网页服务完成;登录凭证只保存在本机。"
+
+msgid "Refresh"
+msgstr "刷新"
+
+msgid "Rendered by Myna's myna-hud; off falls back to the built-in floating window"
+msgstr "由 Myna 的 myna-hud 绘制;关闭则用内置悬浮窗"
+
+msgid "Replace"
+msgstr "替换"
+
+msgid "Replace shortcut?"
+msgstr "替换快捷键?"
+
+msgid "Requires cargo + libgtk-4-dev + libadwaita-1-dev"
+msgstr "需要 cargo + libgtk-4-dev + libadwaita-1-dev"
+
+msgid "Ribbon (wave)"
+msgstr "Ribbon(波浪)"
+
+msgid "Right Alt"
+msgstr "右 Alt"
+
+msgid "Right Ctrl"
+msgstr "右 Ctrl"
+
+msgid "Right Shift"
+msgstr "右 Shift"
+
+msgid "Right Super"
+msgstr "右 Super"
+
+msgid "Run Setup Wizard…"
+msgstr "运行设置向导…"
 
 msgid "Runs automatically when the desktop session starts"
 msgstr "桌面会话启动时自动运行"
 
-msgid "Failed to change autostart: %s"
-msgstr "无法修改开机自启:%s"
+msgid "Self-check"
+msgstr "自检"
+
+msgid "Set"
+msgstr "设置"
+
+msgid "Set Shortcut"
+msgstr "设置快捷键"
+
+msgid "Set up Doubao Voice Input"
+msgstr "设置豆包语音输入法"
+
+msgid "Shortcut"
+msgstr "快捷键"
+
+msgid "Shortcut set to %s"
+msgstr "快捷键已设为 %s"
+
+msgid "Sign in"
+msgstr "登录"
+
+msgid "Sign in again"
+msgstr "重新登录"
+
+msgid "Sign in from the control window to start dictating"
+msgstr "请先在控制窗口登录豆包"
+
+msgid "Sign in to Doubao"
+msgstr "登录豆包"
+
+msgid "Signed in"
+msgstr "已登录"
+
+msgid "Signed in: %s"
+msgstr "已登录:%s"
+
+msgid "Sound effects"
+msgstr "提示音"
+
+msgid "Start on login"
+msgstr "开机自启"
+
+msgid "Starting speech recognition…"
+msgstr "正在启动语音识别…"
+
+msgid "Startup"
+msgstr "启动"
+
+msgid "Status"
+msgstr "状态"
+
+msgid "Status: <b>Detecting…</b>"
+msgstr "状态:<b>检测中…</b>"
+
+msgid "Status: <b>Not signed in</b>  ❌\nClick “Sign in to Doubao” to log in once."
+msgstr "状态:<b>未登录</b>  ❌\n请点击「登录豆包」完成一次登录。"
+
+msgid "Status: <b>Signed in</b>  ✅"
+msgstr "状态:<b>已登录</b>  ✅"
+
+msgid "Stop listening and close the floating window"
+msgstr "停止监听并关闭悬浮窗"
+
+msgid "Stop on focus loss"
+msgstr "焦点离开时结束"
+
+msgid "Tap to start / tap to stop"
+msgstr "按一下开始 / 再按一下结束"
+
+msgid "Test"
+msgstr "测试"
+
+msgid "Test complete  peak=%0.2f  avg=%0.3f"
+msgstr "测试完成  peak=%0.2f  avg=%0.3f"
+
+msgid "Test complete (no data)"
+msgstr "测试完成(无数据)"
+
+msgid "Test paste (inject 'hello 测试 123')"
+msgstr "测试粘贴 (注入 'hello 测试 123')"
+
+msgid "Testing the microphone…"
+msgstr "麦克风测试中…"
+
+msgid "The report contains no audio, transcribed text, or any file paths (paths are replaced with [redacted])."
+msgstr "报告不含音频、识别文本或任何文件路径(路径一律替换为 [redacted])。"
+
+msgid "Transcribing…"
+msgstr "识别中…"
+
+msgid "Trigger"
+msgstr "触发"
+
+msgid "Trigger mode"
+msgstr "触发方式"
+
+msgid "Trigger mode: %s"
+msgstr "触发方式: %s"
+
+msgid "Unknown (%s)"
+msgstr "未知 (%s)"
+
+msgid "Use Ctrl / Alt / Super plus another key, or a function key on its own. Esc cancels."
+msgstr "用 Ctrl / Alt / Super 加上另一个键,或单独的功能键。Esc 取消。"
+
+msgid "Use Ctrl+Shift+V"
+msgstr "使用 Ctrl+Shift+V"
+
+msgid "Use Myna floating capsule"
+msgstr "使用 Myna 悬浮胶囊"
+
+msgid "Waveform style"
+msgstr "波形样式"
+
+msgid "Welcome to Doubao Voice Input"
+msgstr "欢迎使用豆包语音输入法"
+
+msgid "Works without it"
+msgstr "不装也能用"
+
+msgid "Writes a custom desktop shortcut whose command is D-Bus Toggle"
+msgstr "写进桌面的自定义快捷键,命令是 D-Bus Toggle"
+
+msgid "You need to sign in once the first time; credentials are reused afterwards. Clicking “Sign in to Doubao” opens a web window where you just log in normally."
+msgstr "第一次使用需要登录一次,之后凭证会复用。点「登录豆包」会打开一个网页窗口,在里面正常登录即可。"
+
+msgid "autostart state did not change"
+msgstr "开机自启状态没有变化"
 
 msgid "no systemd user service, and ~/.config/autostart is not writable"
 msgstr "没有 systemd 用户服务,且 ~/.config/autostart 不可写"
@@ -54,5 +486,5 @@ msgstr "没有 systemd 用户服务,且 ~/.config/autostart 不可写"
 msgid "systemctl is not available"
 msgstr "未找到 systemctl"
 
-msgid "autostart state did not change"
-msgstr "开机自启状态没有变化"
+msgid "（no usable player found; silent）"
+msgstr "(找不到可用的播放工具,不会响)"

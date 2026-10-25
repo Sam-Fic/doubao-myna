@@ -183,19 +183,15 @@ def _trigger_phrase(app: Any = None) -> str:
         return "默认按住 <b>右 Ctrl</b> 说话,松开就粘贴进去"
 
 #: 新功能页(AppStream 风格:只认 <p> / <ul> / <ol> / <li> / <em> / <code>)
-#: 内容对齐 README 的「更新日志 → v1.1.0」。
-RELEASE_NOTES_VERSION = "1.1.0"
+#: 内容对齐 README 的「更新日志 → v1.1.1」。
+RELEASE_NOTES_VERSION = "1.1.1"
 RELEASE_NOTES = (
-    "<p>v1.1.0 的重点:</p>"
+    "<p>v1.1.1 的重点:</p>"
     "<ul>"
-    "<li>设置界面重做成 libadwaita 三页布局(输入 / 诊断 / 应用)</li>"
-    "<li>集成 Myna <code>myna-hud</code> 渲染器与 D-Bus 状态同步,可选悬浮胶囊</li>"
-    "<li>触发可配:桌面快捷键(组合键)、evdev 物理键、按住说话 / Myna 式 toggle</li>"
-    "<li>快捷键冲突检测与最近错误记录</li>"
-    "<li>首次运行向导与设置窗口主菜单</li>"
-    "<li>隐私诊断报告(不含音频、识别文本、绝对路径)</li>"
-    "<li>提示音(开始 / 结束 / 错误)与 ESC 取消</li>"
-    "<li>命令行支持 <code>-v</code> / <code>--quiet</code> / <code>--show</code> 与文件日志</li>"
+    "<li>界面文案全部可翻译:简体 / 繁体中文覆盖设置窗口、向导、快捷键窗、悬浮窗与桌面通知</li>"
+    "<li>修复物理键名称两份表不同步(设置页与启动提示说法不一致)</li>"
+    "<li>新增「开机自启」开关(输入 → 启动),失败会回拨并说明原因</li>"
+    "<li>诊断报告加入开机自启状态与所用后端</li>"
     "</ul>"
 )
 
@@ -210,7 +206,7 @@ def app_version() -> str:
 
         return version("doubao-input")
     except Exception:
-        return "1.1.0"
+        return "1.1.1"
 
 
 def _license(name: str) -> Gtk.License:

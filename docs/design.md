@@ -316,3 +316,45 @@ src/doubao_input/
 | 豆包逻辑 | vendored 复用 `doubao-murmur`（MIT），登录/凭证/WSS/音频不重写 |
 
 下一步：定稿后开 **M1**（venv 装依赖 → 跑通豆包登录与一次识别）。
+
+### 9.3 i18n 覆盖率检查（发版前必跑）
+
+v1.1.0 踩过的坑：界面字符串改成了英文 + `_()`，但 `.po` 没跟上，中文用户看到半个英文界面。仓库里没有自动化测试盯着这件事，所以发版前手动跑这段：
+
+```python
+# python3 -c "$(cat)" <<'PY'
+import ast, pathlib, sys, gettext, io
+sys.path.insert(0, "src")
+from doubao_input.i18n import parse_po, compile_po
+
+used = {}
+for p in sorted(pathlib.Path("src/doubao_input").rglob("*.py")):
+    if "locale" in str(p):
+        continue
+    for node in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "_":
+            a = node.args[0] if node.args else None
+            if isinstance(a, ast.Constant) and isinstance(a.value, str):
+                used.setdefault(a.value, []).append(f"{p.name}:{node.lineno}")
+
+for lang in ("zh_CN", "zh_TW"):
+    text = pathlib.Path(f"src/doubao_input/locale/{lang}/LC_MESSAGES/doubao-input.po").read_text(encoding="utf-8")
+    cat = parse_po(text)
+    tr = gettext.GNUTranslations(io.BytesIO(compile_po(text)))
+    missing = sorted(s for s in used if s not in cat)
+    same = sorted(s for s in used if tr.gettext(s) == s and not s.isascii())
+    bad = [(m, cat[m]) for m in cat if cat[m].count("%s") != m.count("%s")]
+    print(f"{lang}: literals={len(used)} missing={len(missing)} untranslated={len(same)} placeholders={len(bad)}")
+    for s in missing + same:
+        print("  ", repr(s[:70]))
+    assert not missing and not same and not bad, f"{lang} 翻译不完整"
+PY
+```
+
+三条硬性规则：
+
+1. **每个对用户可见的字符串都要包 `_()`** —— 包括 `toast()`、`set_title()`、通知正文、悬浮窗状态、诊断页 `reason()`。
+2. **不要在模块级翻译**：`TITLE = "..."` 这类常量在 import 时求值，那时 `i18n.init()` 还没跑。要么存英文常量在调用处 `_(TITLE)`，要么把默认参数改成 `None`、函数体内翻译（见 `ui/shortcut_capture.py`）。
+3. **键名之类的"两边一样"的串**（`F12`、`VU meter`）可以不翻译，但 `Scroll Lock` / `Menu` 这类仍是原样 —— 不算错误。
+
+改完 `.po` 后用 `LANGUAGE=zh_CN` 跑一遍应用，肉眼确认设置窗口 / 向导 / 快捷键窗都是中文。

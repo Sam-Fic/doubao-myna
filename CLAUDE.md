@@ -33,6 +33,12 @@ src/doubao_input/
 │                          `i18n.switch()` → rebuild the window, because UI
 │                          strings are frozen at build time). Persisted as
 │                          `settings.json: language` ("" = follow the system).
+│                          EVERY user-visible string must be `_()`-wrapped;
+│                          `tests/probe/` has no check for this, so run the
+│                          po-coverage snippet in docs/design.md before release.
+│                          Never translate at module level (constants like
+│                          `TITLE = "..."` are evaluated at import, before
+│                          `init()` runs) — translate at call time.
 ├── app.py                 GtkApplication. Wires trigger → TM → overlay/injector.
 │                          Wraps AudioCapture.start/stop to pipe RMS to the overlay.
 │                          Hides overlay+control window before paste so injected Ctrl+V

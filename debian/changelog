@@ -1,3 +1,27 @@
+doubao-input (1.1.1-1) noble; urgency=medium
+
+  * i18n: the interface is now fully translatable. Source strings are
+    English and Chinese comes from gettext catalogs; 1.1.0 shipped a
+    half-migrated UI where most of the window was still untranslated,
+    so Chinese users saw English labels. zh_CN and zh_TW now cover
+    every user-visible string (142 literals + the shortcut/trigger
+    option names), including the settings window, first-run wizard,
+    shortcut capture, HUD fallback overlay and desktop notifications.
+  * Fixed duplicated trigger-key table: doubao/config.py still had the
+    Chinese names while ui/control_window.py had the English ones, so
+    the settings dropdown and the startup hint disagreed (and the
+    English build showed Chinese in the hint). config.py is now the
+    single source of truth.
+  * Settings: new "Start on login" switch (Input -> Startup). It reads
+    the live state from the systemd user unit or the XDG autostart
+    entry instead of a cached flag, and flips back with a toast when
+    the write fails (no systemd, unwritable ~/.config/autostart).
+  * Diagnostics report now lists the autostart state and backend.
+  * Autostart module added (systemd user unit + XDG autostart, falls
+    back to masking the unit when "systemctl disable" does not stick).
+
+ -- doubao-input contributors <code-dream@qq.com>  Sun, 25 Oct 2026 21:40:00 +0800
+
 doubao-input (1.1.0-1) noble; urgency=medium
 
   * Settings: libadwaita three-page PreferencesWindow (账号/输入/诊断).

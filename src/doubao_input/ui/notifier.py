@@ -18,10 +18,12 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import GLib, Gio  # type: ignore
 
+from doubao_input.i18n import _
+
 logger = logging.getLogger(__name__)
 
 NOTIFICATION_ID = "doubao-dictation"
-TITLE = "豆包听写"
+TITLE = "Doubao Dictation"
 
 # 与 wire 常量保持一致,避免循环导入
 IDLE = "idle"
@@ -49,7 +51,7 @@ class Notifier:
             self.close()
             return
 
-        title = TITLE
+        title = _(TITLE)
         body = self._body_for(state, message)
         notification = Gio.Notification.new(title)
         notification.set_body(body)
@@ -73,11 +75,11 @@ class Notifier:
     def _body_for(state: str, message: str) -> str:
         """正文永远是内容无关的文案:识别文本绝不进通知。"""
         if state == LOADING:
-            return "正在连接…"
+            return _("Connecting…")
         if state in (RECORDING, TRANSCRIBING):
-            return "聆听中…"
+            return _("Listening…")
         if state == FINALIZING:
-            return "识别中…"
+            return _("Transcribing…")
         return message or "…"
 
     def _schedule_hide(self, state: str, body: str) -> None:

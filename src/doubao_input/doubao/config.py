@@ -116,15 +116,18 @@ SOUNDS_ENABLED = True
 # 会话中按 ESC 取消(丢弃本次内容)。空串 = 不接取消键。
 CANCEL_KEY_NAME = "KEY_ESC"
 
-# 物理键(evdev 键名 → 显示名)。设置窗口的下拉和启动提示都用这张表。
+# 物理键(evdev 键名 → 显示名;显示名走 i18n,源码英文)。
+# 这张表是**唯一来源**:设置窗口、首次运行向导、启动提示都从这里取。
+# (以前 control_window.py 里另有一份,两份中英不同步 —— 界面下拉是英文、
+#  启动提示却是中文。别再把表复制一份到别处。)
 TRIGGER_KEY_CHOICES = [
-    ("KEY_RIGHTCTRL", "右 Ctrl"),
-    ("KEY_LEFTCTRL", "左 Ctrl"),
-    ("KEY_RIGHTALT", "右 Alt"),
-    ("KEY_LEFTALT", "左 Alt"),
-    ("KEY_RIGHTSHIFT", "右 Shift"),
-    ("KEY_LEFTMETA", "左 Super"),
-    ("KEY_RIGHTMETA", "右 Super"),
+    ("KEY_RIGHTCTRL", "Right Ctrl"),
+    ("KEY_LEFTCTRL", "Left Ctrl"),
+    ("KEY_RIGHTALT", "Right Alt"),
+    ("KEY_LEFTALT", "Left Alt"),
+    ("KEY_RIGHTSHIFT", "Right Shift"),
+    ("KEY_LEFTMETA", "Left Super"),
+    ("KEY_RIGHTMETA", "Right Super"),
     ("KEY_SCROLLLOCK", "Scroll Lock"),
     ("KEY_PAUSE", "Pause"),
     ("KEY_F12", "F12"),

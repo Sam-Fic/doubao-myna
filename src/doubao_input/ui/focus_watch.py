@@ -25,6 +25,8 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import GLib, Gio  # type: ignore
 
+from doubao_input.i18n import _
+
 logger = logging.getLogger(__name__)
 
 _EVAL_SCRIPT = (
@@ -52,8 +54,11 @@ def reason() -> str:
     if supported():
         return ""
     if os.environ.get("WAYLAND_DISPLAY") and not os.environ.get("XDG_SESSION_TYPE") == "x11":
-        return "Wayland 下第三方进程读不到其它窗口的焦点(需 X11 会话或 GNOME Shell 扩展)"
-    return "未找到 xdotool / xprop,且 GNOME Shell 的 Eval 接口不可用"
+        return _(
+            "On Wayland another process cannot read the focus of other windows "
+            "(needs an X11 session or a GNOME Shell extension)"
+        )
+    return _("Neither xdotool nor xprop found, and GNOME Shell's Eval interface is unavailable")
 
 
 def focused_identity() -> str | None:
