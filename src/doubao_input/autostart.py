@@ -55,7 +55,12 @@ _UNIT_DIRS = (
     "/usr/local/lib/systemd/user",
 )
 
-#: 图标绝对路径(照 debian/doubao-input.desktop 的做法:不依赖图标主题缓存)。
+#: 图标名(装过 .deb 就是 hicolor 主题里的 doubao-input)。
+#: 用主题名而不是绝对路径:绝对路径在 GNOME 的图标缓存里拿不到按尺寸的
+#: 版本,而且写成主题名时桌面能自动跟随图标主题。
+_ICON_NAME = "doubao-input"
+
+#: 装包后的图标落点(判断主题名能不能用)。
 _ICON_PATH = "/usr/share/icons/hicolor/scalable/apps/doubao-input.svg"
 
 #: systemctl 的超时秒数 —— 这些调用会落在 GTK 主线程上,宁可失败也不能挂住界面。
@@ -227,7 +232,8 @@ def exec_command() -> str:
 
 
 def _desktop_entry() -> str:
-    icon = _ICON_PATH if Path(_ICON_PATH).is_file() else "doubao-input"
+    # 用主题名(装过包 hicolor 里就有 doubao-input);源码运行时图标不存在,
+    # 桌面会退回通用图标,但不影响自启本身。
     return (
         "[Desktop Entry]\n"
         "Type=Application\n"
@@ -239,7 +245,7 @@ def _desktop_entry() -> str:
         "Comment[zh_CN]=登录桌面后自动启动豆包语音输入法\n"
         "Comment[zh_TW]=登入桌面後自動啟動豆包語音輸入法\n"
         f"Exec={exec_command()}\n"
-        f"Icon={icon}\n"
+        f"Icon={_ICON_NAME}\n"
         "Terminal=false\n"
         "StartupNotify=false\n"
         "X-GNOME-Autostart-enabled=true\n"

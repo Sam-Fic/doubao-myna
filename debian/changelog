@@ -1,3 +1,68 @@
+doubao-input (1.1.4-1) noble; urgency=medium
+
+  * Tray icon is now Adwaita's monochrome audio-input-microphone-symbolic
+    instead of the app's colour logo. The old choice was wrong for a
+    16-24px status area: the 256px colourful mark turns to mush at that
+    size and does not follow the theme foreground colour, so it looked
+    out of place in dark themes. Recording still switches to
+    media-record-symbolic (a filled dot). Both are stock Adwaita icons
+    present in Adwaita/Yaru/Yaru-dark, with microphone-sensitivity-*
+    fallbacks if a trimmed theme dropped them.
+  * The app's own logo is unchanged for the settings window, the
+    .desktop entry and the app grid.
+
+ -- doubao-input contributors <code-dream@qq.com>  Tue, 27 Oct 2026 20:35:00 +0800
+
+doubao-input (1.1.3-1) noble; urgency=medium
+
+  * Closing the settings window no longer quits the app. Like
+    mihomo-manifold, the window is hidden instead and the process keeps
+    running with the evdev listener alive; the tray icon is the way back.
+    Only "Quit" (tray menu or the Diagnostics page) really exits.
+  * The behaviour is gated on the tray actually being shown: the app
+    calls Gio.Application.hold() and enables hide-on-close only after
+    StatusNotifierWatcher accepts the item. Without a host (stock GNOME
+    with no AppIndicator extension) closing the window still quits
+    normally, so the app can never end up alive with no way to reach it.
+  * Quit releases the hold first, so quit() is not a no-op; shutdown does
+    the same for the systemd stop path.
+  * Diagnostics: the Quit row now says that closing the window only hides
+    it to the tray.
+
+ -- doubao-input contributors <code-dream@qq.com>  Tue, 27 Oct 2026 20:10:00 +0800
+
+doubao-input (1.1.2-1) noble; urgency=medium
+
+  * Tray icon: the app now exports a real StatusNotifierItem. ui/tray.py
+    is implemented in plain Gio/D-Bus (org.kde.StatusNotifierItem on
+    /StatusNotifierItem + com.canonical.dbusmenu on /MenuBar) instead of
+    libayatana-appindicator, because the only typelib Ubuntu ships is the
+    GTK3 one and importing it from a GTK4 process raises ImportError.
+    Menu: Show Control Window / Check Microphone / Quit; the icon switches
+    to NeedsAttention while recording. Every step degrades silently when
+    there is no StatusNotifierWatcher (stock GNOME has none).
+  * Fixed: the app did not start at login on Wayland. The unit was
+    WantedBy=default.target with After=graphical-session.target, but that
+    ordering is inert (graphical-session.target is RefuseManualStart and
+    comes up later), so the process started before the Wayland socket
+    existed, failed Gtk init and exited 0 - which Restart=on-failure does
+    not cover. Now WantedBy=graphical-session.target with an explicit
+    After=gnome-session-initialized.target, and the hardcoded
+    DISPLAY=:0 is gone. postinst removes the stale
+    default.target.wants symlinks left by <=1.1.1.
+  * Fixed: the app icon was generic in the shell. The desktop entry is now
+    com.doubao.Input.desktop so it matches Gtk.Application's
+    application_id (Wayland window app_id), with StartupWMClass for X11.
+    Icon switched from an absolute path to the theme name.
+  * Icons: ship real per-size PNGs (16..256) instead of one 256x256 SVG
+    duplicated into 128x128, plus a -symbolic mic glyph for panels and a
+    debian/doubao-input.triggers hook so the icon cache refreshes on
+    install instead of at next logout.
+  * Diagnostics: report the tray state and, when it is unavailable, say
+    which package is missing instead of failing silently.
+
+ -- doubao-input contributors <code-dream@qq.com>  Tue, 27 Oct 2026 18:30:00 +0800
+
 doubao-input (1.1.1-1) noble; urgency=medium
 
   * i18n: the interface is now fully translatable. Source strings are

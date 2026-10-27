@@ -96,8 +96,18 @@ jobs:
             ### Package contents
             - Python app + `doubao-input` launcher
             - systemd `--user` service for auto-start
-            - hicolor app icon + `.desktop` entry
+            - StatusNotifierItem tray icon (Adwaita monochrome microphone);
+              closing the window hides it there, "Quit" in the tray exits
+            - hicolor app icon (16-256 PNG + scalable/symbolic SVG) and a
+              `com.doubao.Input.desktop` entry matching the app id
             - `postinst` bootstraps a per-user venv (websockets / sounddevice / evdev)
+
+            ### Notes
+            - The tray icon needs an AppIndicator host. Ubuntu ships
+              `ubuntu-appindicators`; on stock GNOME install
+              `gnome-shell-extension-appindicator`. Without one the app
+              works normally and closing the window simply quits.
+            - Re-login after installing so the `input` group takes effect.
 
             Full changelog: [`debian/changelog`](debian/changelog).
           files: ${{ steps.deb.outputs.path }}

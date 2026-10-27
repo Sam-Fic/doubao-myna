@@ -1,0 +1,9 @@
+# 图标缓存触发。
+#
+# dh_installsystemd 之外的图标刷新靠这个 trigger：装/卸本包时让
+# update-icon-caches 重建 hicolor 的 icon-theme.cache。没有它，GNOME Shell
+# 的图标缓存要等下一次注销才认新图标（用户看到的是空图标或旧图标）。
+#
+# 注意：hook 必须和 dh_installdeb 认的名字一致 —— 它只认
+# /usr/share/icons/hicolor，正好是我们装图的地方。
+interest-noawait /usr/share/icons/hicolor

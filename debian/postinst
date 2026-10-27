@@ -8,6 +8,7 @@
 #   (websockets, sounddevice, evdev). These are not in Ubuntu's
 #   apt repos so we install them via pip into the user venv.
 # - Print a friendly summary.
+# - 升级时清掉旧包留下的坏自启链接(见第 4 步)。
 
 set -e
 
@@ -75,6 +76,41 @@ case "$1" in
                 fi
             fi
         fi
+
+        # ---- 4. 迁移:旧版本的 unit 是 WantedBy=default.target ----
+        #
+        # 1.1.1 及更早的 unit 写成 WantedBy=default.target + After=
+        # graphical-session.target。那个 After= 实际不生效,进程会在 Wayland
+        # socket 就绪前启动、GTK 初始化失败后静默退出(Restart=on-failure
+        # 也救不了,退出码是 0)。新版改成 WantedBy=graphical-session.target,
+        # 但**继承下来的旧符号链接还在**,会继续在错误时机拉起我们。
+        #
+        # 这里把旧链接拆掉。新的 enable 交给下面的 #DEBHELPER# 段 ——
+        # dh_installsystemd 读的是 deb-systemd-helper 的 state 文件(不是读
+        # 链接),会按新的 WantedBy=graphical-session.target 重建;用户主动
+        # 关掉的自启也不会被误开。
+        #   * 拆 /etc/systemd/user/default.target.wants(全局,需 root)
+        #   * 拆用户级 ~/.config/systemd/user/default.target.wants
+        for link in \
+            /etc/systemd/user/default.target.wants/doubao-input.service \
+            /usr/lib/systemd/user/default.target.wants/doubao-input.service \
+            /lib/systemd/user/default.target.wants/doubao-input.service
+        do
+            if [ -L "$link" ]; then
+                rm -f "$link"
+                echo "doubao-input postinst: 清掉旧的自启链接 $link"
+            fi
+        done
+
+        if [ -n "$USER_NAME" ] && [ "$USER_NAME" != "root" ]; then
+            USER_HOME=$(getent passwd "$USER_NAME" | cut -d: -f6)
+            OLD_LINK="$USER_HOME/.config/systemd/user/default.target.wants/doubao-input.service"
+            if [ -n "$USER_HOME" ] && [ -L "$OLD_LINK" ]; then
+                rm -f "$OLD_LINK"
+                echo "doubao-input postinst: 清掉旧的自启链接 $OLD_LINK"
+            fi
+        fi
+        # 重新 enable 交给下面的 #DEBHELPER# 段。
 
         echo
         echo "=== doubao-input 安装完成 ==="

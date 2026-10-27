@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- 托盘 / 面板用的符号化图标(`-symbolic` 后缀 = GTK 会按当前前景色重着色)。
+       22px 下渲染整张彩色 logo 会糊成一团,所以这里只留麦克风轮廓。 -->
+  <rect x="5.25" y="0.75" width="5.5" height="8.5" rx="2.75" fill="currentColor"/>
+  <g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+    <path d="M3.25 7.25a4.75 4.75 0 0 0 9.5 0"/>
+    <path d="M8 12v2.5"/>
+  </g>
+</svg>

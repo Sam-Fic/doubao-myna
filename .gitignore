@@ -62,6 +62,15 @@ asr_params.json
 build-dir/
 .flatpak-builder/
 
+# dpkg-buildpackage 在 debian/ 下留的中间产物
+# (debian/icons/ 与 debian/doubao-input.triggers 是源文件,不能忽略)
+debian/.debhelper/
+debian/doubao-input/
+debian/debhelper-build-stamp
+debian/files
+debian/*.substvars
+debian/*.debhelper
+
 # Test/debug artifacts
 /tmp/
 /.cache/doubao-input_*.deb

@@ -133,7 +133,7 @@ src/doubao_input/
 └── ui/                    ← 自研：界面（全新设计）
     ├── overlay.py          按住时的悬浮窗
     ├── control_window.py   控制/状态窗口（登录、帮助、退出）
-    └── tray.py             可选 AppIndicator 托盘
+    └── tray.py             StatusNotifierItem 托盘（纯 Gio/D-Bus 实现）
 ```
 
 ### 5.1 `trigger/evdev_ptt.py`（自研核心）
@@ -211,9 +211,20 @@ src/doubao_input/
 - 内容：登录状态、"登录豆包"按钮、使用说明（右 Ctrl 按住说话）、退出。
 - 登录窗口复用 `login_window.py` 的 WebKitGTK 实现。
 
-### 6.3 托盘（可选，降级友好）
-- GNOME 48 默认不显示 StatusNotifierItem 托盘，需 AppIndicator 扩展。
-- 策略：检测到 SNI 可用就显示 🎤 托盘；否则**静默降级**，功能不受影响，引导用户用控制窗口。
+### 6.3 托盘（降级友好）
+- GNOME 默认不显示 StatusNotifierItem，需 AppIndicator 扩展
+  （Ubuntu 自带 `gnome-shell-extension-appindicator` / `ubuntu-appindicators`）。
+- **实现在 `ui/tray.py`，纯 `Gio`/D-Bus**：导出 `org.kde.StatusNotifierItem`
+  （`/StatusNotifierItem`）和 `com.canonical.dbusmenu`（`/MenuBar`），再向
+  `org.kde.StatusNotifierWatcher` 报到。
+
+  为什么不用 `libayatana-appindicator`：Ubuntu 只提供 **GTK3** 版的 typelib
+  （`gir1.2-ayatanaappindicator3-0.1`），在 GTK4 进程里 import 会
+  `Requiring namespace 'Gtk' version '3.0', but '4.0' is already loaded`。
+  纯 Gio 实现也顺带免掉一个运行时依赖。
+- 菜单：显示控制窗口 / 检查麦克风 / 退出；录音中状态切 `NeedsAttention`。
+- 降级：没有 watcher（原生 GNOME）时 `RegisterStatusNotifierItem` 失败，
+  只记一条 INFO，功能完全不受影响；诊断页会说明原因。
 
 > 待讨论：悬浮窗的视觉风格（胶囊 / 极简条 / 波形动画）我可以出几版 mockup 给你选。
 
@@ -238,7 +249,10 @@ src/doubao_input/
   - 倾向：先用 A（最省事）；若遇系统 Python 版本/包冲突再切 B。
 - `debian/control` 列出上述 `Depends:`。
 - 提供 **systemd user service**（`doubao-input.service`，`systemctl --user enable --now`），随登录会话常驻。
-- 桌面入口 `doubao-input.desktop`（唤起控制窗口）。
+- 桌面入口 `com.doubao.Input.desktop`（唤起控制窗口）。**文件名必须等于
+  `Gtk.Application` 的 `application_id`**：Wayland 下窗口的 app_id 就是这个
+  id，GNOME Shell 拿它去找同名 `.desktop`，否则任务栏/概览里只有通用图标。
+  图标按 hicolor 规范分尺寸安装（16~256 PNG + scalable SVG + symbolic）。
 
 ### 7.3 `postinst`：权限自检（已定：走 `input` 组）
 - 把当前用户加入 `input` 组（`usermod -aG input $SUDO_USER`），并提示需**重新登录**生效。

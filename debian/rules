@@ -47,17 +47,38 @@ override_dh_auto_install:
 	install -m 0644 debian/doubao-input.service \
 	    debian/doubao-input/usr/lib/systemd/user/doubao-input.service
 
-	# Desktop entry
+	# Desktop entry。文件名必须等于 Gtk.Application 的 application_id
+	# (com.doubao.Input),否则 Wayland 下 GNOME Shell 拿窗口的 app_id
+	# 找不到对应的 .desktop,任务栏/概览里就是通用图标。
 	install -d debian/doubao-input/usr/share/applications
-	install -m 0644 debian/doubao-input.desktop \
-	    debian/doubao-input/usr/share/applications/doubao-input.desktop
+	install -m 0644 debian/com.doubao.Input.desktop \
+	    debian/doubao-input/usr/share/applications/com.doubao.Input.desktop
 
-	# App icon — hicolor theme. The .desktop points at the scalable SVG,
-	# which is installed by debian/install (debian/doubao-input.svg).
-	# Provide a 128x128 copy (also an SVG) so size-specific lookups work.
-	install -d debian/doubao-input/usr/share/icons/hicolor/128x128/apps
+	# App icon —— 按 hicolor 规范装到各自尺寸目录。
+	#
+	# 以前的做法是把同一张 256x256 SVG 同时塞进 scalable/ 和 128x128/:
+	#	  * 128x128 目录里放 256 的图,面板在 22~24px 上取到的是缩了
+	#	    十倍多重渐变+阴影的位图,格子全糊(true tray 上更明显);
+	#	  * 也不装 -symbolic 版本,SNI 托盘 / 面板就只能用彩色大图。
+	# 现在:每个尺寸给一张真 PNG,再额外给 scalable + symbolic 的 SVG。
+	for size in 16 22 24 32 48 64 128 256; do \
+	    install -d debian/doubao-input/usr/share/icons/hicolor/$${size}x$${size}/apps; \
+	    install -m 0644 debian/icons/doubao-input-$${size}.png \
+	        debian/doubao-input/usr/share/icons/hicolor/$${size}x$${size}/apps/doubao-input.png; \
+	done
+	install -d debian/doubao-input/usr/share/icons/hicolor/scalable/apps
 	install -m 0644 src/doubao_input/resources/logo.svg \
-	    debian/doubao-input/usr/share/icons/hicolor/128x128/apps/doubao-input.svg
+	    debian/doubao-input/usr/share/icons/hicolor/scalable/apps/doubao-input.svg
+	# 符号化版本:应用窗口标题栏 / 概览里用这个单色字形(可跟随主题前景色)。
+	# 注意托盘**不用**它 —— 顶栏只有 16~24px,托盘直接引用 Adwaita 自带的
+	# audio-input-microphone-symbolic(见 ui/tray.py)。
+	install -m 0644 src/doubao_input/resources/logo-symbolic.svg \
+	    debian/doubao-input/usr/share/icons/hicolor/scalable/apps/doubao-input-symbolic.svg
+
+	# 图标缓存:hicolor 由 update-icon-caches 的 trigger 处理,但那个
+	# trigger 只有在包里带了 debian/<pkg>.triggers 时才生成。这里显式声明,
+	# 否则 GNOME Shell 的图标缓存要等下一次注销才刷新。
+	# (见 debian/doubao-input.triggers)
 
 	# Docs
 	install -d debian/doubao-input/usr/share/doc/doubao-input

@@ -1,6 +1,19 @@
 [Unit]
 Description=豆包语音输入法 (Doubao Input)
 Documentation=https://github.com/wurong98/doubao-input-for-linux
+
+# 关键:必须是 graphical-session.target,而不是 default.target。
+#
+# 用 default.target + After=graphical-session.target 是坏的:After= 只约束
+# 同一个事务里的 job,而 graphical-session.target 是 RefuseManualStart、
+# 由 gnome-session 后拉起来的。结果我们的进程在 Wayland socket 就绪之前
+# 就启动,GTK 初始化失败(gtk_icon_theme_get_for_display: assertion
+# 'GDK_IS_DISPLAY (display)' failed → Gtk couldn't be initialized),
+# 于是整个应用当场退出(Restart=on-failure 也救不了,退出码是 0)。
+#
+# 用 WantedBy=graphical-session.target 让 systemd 在会话目标达成后拉起,
+# 再用 After= 排在 gnome-session 初始化之后。
+After=gnome-session-initialized.target
 After=graphical-session.target
 PartOf=graphical-session.target
 
@@ -10,8 +23,9 @@ ExecStart=/usr/bin/doubao-input
 Restart=on-failure
 RestartSec=3
 
-# Wayland / X11 都需要
-Environment=DISPLAY=:0
+# Wayland / X11 都需要。不要写死 DISPLAY=:0 —— 系统里同时用 X11 会话、
+# 或者 DISPLAY 不是 :0 时就会把错误的值塞给 GTK。wayland,x11 的探测顺序
+# 由 GDK 自己决定,有 WAYLAND_DISPLAY 就走 Wayland。
 Environment=GDK_BACKEND=wayland,x11
 Environment=PYTHONUNBUFFERED=1
 
@@ -23,4 +37,4 @@ ProtectSystem=full
 PrivateTmp=true
 
 [Install]
-WantedBy=default.target
+WantedBy=graphical-session.target

@@ -1,0 +1,27 @@
+[Desktop Entry]
+Type=Application
+Name=豆包语音输入法
+Name[en]=Doubao Voice Input
+GenericName=Voice Input Method
+Comment=按住右 Ctrl 说话,松开自动粘贴到当前输入框
+Comment[en]=Hold right-Ctrl, speak, release to paste into the active input
+Exec=doubao-input
+# 文件名必须和 Gtk.Application 的 application_id 一致(com.doubao.Input):
+# Wayland 下窗口的 app_id 就是这个 id,GNOME Shell 拿它去找
+# /usr/share/applications/com.doubao.Input.desktop,找不到就只能显示通用图标。
+# StartupWMClass 是 X11 下的等价兜底(按 WM_CLASS 匹配)。
+StartupWMClass=com.doubao.Input
+# 用主题名而不是绝对路径:绝对路径虽然更"稳",但 GNOME 的图标缓存是按
+# 主题名 + 尺寸查的,写死路径会让"应用图标"缺尺寸(只能靠 StartupWMClass
+# 兜底),也没法跟随主题换符号化图标。装包时由 dh_icons 刷缓存。
+Icon=doubao-input
+Terminal=false
+Categories=Utility;TextTools;
+StartupNotify=false
+Keywords=voice;speech;input;asr;doubao;语音;听写;
+Actions=show-control;
+
+[Desktop Action show-control]
+Name=显示控制窗口
+Name[en]=Show Control Window
+Exec=doubao-input --show

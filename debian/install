@@ -1,3 +1,6 @@
+# dh_install 的清单。
+#
+# 只留 systemd unit：.desktop 条目和图标由 debian/rules 的
+# override_dh_auto_install 显式安装（它们需要改名、按尺寸铺开、生成
+# symbolic 版本，不是简单的「原样拷过去」）。
 debian/doubao-input.service /usr/lib/systemd/user/
-debian/doubao-input.desktop /usr/share/applications/
-debian/doubao-input.svg /usr/share/icons/hicolor/scalable/apps/

@@ -278,7 +278,11 @@ systemctl --user enable --now doubao-input.service
 ## 已知限制
 1. **粘贴快捷键兼容性**：默认使用 Ctrl+Shift+V 以兼容终端环境，部分 GUI 应用仅支持 Ctrl+V，需在设置界面手动切换。
 2. **默认悬浮窗定位**：未安装 GNOME 扩展时，`myna-hud` 作为普通窗口运行，位置由混成器分配，无法实现原生底部居中与防遮挡。
-3. **系统托盘可见性**：GNOME 48 默认隐藏 StatusNotifierItem，需安装 AppIndicator 扩展方可显示托盘图标。
+3. **系统托盘可见性**：应用会导出 StatusNotifierItem 托盘（显示控制窗口 / 检查麦克风 / 退出），
+   但 GNOME 默认不显示 SNI，需装 AppIndicator 扩展：
+   `sudo apt install gnome-shell-extension-appindicator`（Ubuntu 上一般自带
+   `ubuntu-appindicators`，已启用就无需额外操作）。没装也不会影响任何功能——
+   托盘只是入口之一，设置窗口和 `.desktop` 条目照常可用；诊断页会明确告知原因。
 4. **接口稳定性**：依赖豆包 Web 版非公开接口，若官方变更 API，可能导致 ASR 失效。
 5. **剪贴板占用**：输入过程会覆盖系统剪贴板当前内容。
 6. **「焦点离开时结束」为 best-effort**：Myna 通过 IBus 精确感知目标字段，本项目走剪贴板只能询问桌面。
