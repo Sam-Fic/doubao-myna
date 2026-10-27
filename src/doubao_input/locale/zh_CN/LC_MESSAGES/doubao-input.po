@@ -132,6 +132,21 @@ msgstr "听写"
 msgid "Dictation cancelled"
 msgstr "已取消本次听写"
 
+msgid "Check Microphone"
+msgstr "检查麦克风"
+
+msgid "Dictating"
+msgstr "正在听写"
+
+msgid "Show Control Window"
+msgstr "显示控制窗口"
+
+msgid "not available (the desktop has no StatusNotifierItem host)"
+msgstr "不可用(桌面没有 StatusNotifierItem 宿主)"
+
+msgid "shown in the system tray"
+msgstr "已显示在系统托盘"
+
 msgid "Disabled"
 msgstr "未启用"
 
@@ -411,8 +426,8 @@ msgstr "状态:<b>未登录</b>  ❌\n请点击「登录豆包」完成一次登
 msgid "Status: <b>Signed in</b>  ✅"
 msgstr "状态:<b>已登录</b>  ✅"
 
-msgid "Stop listening and close the floating window"
-msgstr "停止监听并关闭悬浮窗"
+msgid "Stop listening and quit completely; closing the window only hides it to the tray"
+msgstr "停止监听并彻底退出;关闭窗口只会隐藏到系统托盘"
 
 msgid "Stop on focus loss"
 msgstr "焦点离开时结束"

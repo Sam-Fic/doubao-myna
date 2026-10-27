@@ -72,6 +72,7 @@ from doubao_input.ui.notifier import Notifier
 from doubao_input.ui.onboarding import OnboardingWindow, available as adw_available
 from doubao_input.ui.overlay import Overlay
 from doubao_input.ui.sounds import Sounds
+from doubao_input.ui.tray import Tray
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +121,14 @@ class DoubaoInputApp(Gtk.Application):
         self._shortcut = DesktopShortcut()
         self._stop_on_focus_loss = load_stop_on_focus_loss()
         self._sounds = Sounds(load_sounds())
+        self._tray: Tray | None = None
+        # 托盘图标是否真的显示出来了(决定关窗是隐藏还是退出)
+        self._tray_ready = False
+        # 是否已经 hold() 住了应用。
+        # 注意:Gio.Application.hold() 返回 **void**(PyGObject 里是 None),
+        # 拿不到 id,所以只能用一个旗标自己记账 —— 否则重复 hold 会导致
+        # 计数泄露、quit() 永远退不掉。
+        self._held = False
         self._notifier: Notifier | None = None
         self._onboarding: OnboardingWindow | None = None
         self._last_voice_at = 0.0
@@ -243,6 +252,12 @@ class DoubaoInputApp(Gtk.Application):
 
         向导是另一套窗口,里面的字符串同样是建时定死的,不重建就会停在旧语言。
         """
+        # 托盘的菜单文案 / 标题也是建时定死的,一样得刷一遍。
+        if self._tray is not None:
+            try:
+                self._tray.retranslate()
+            except Exception as e:
+                logger.debug("tray retranslate failed: %s", e)
         if self._onboarding is None:
             return
         window = self._onboarding._window
@@ -291,6 +306,10 @@ class DoubaoInputApp(Gtk.Application):
     def _on_shutdown(self, _app) -> None:
         logger.info("shutting down")
         self._onboarding = None
+        self._release_hold()
+        if self._tray is not None:
+            self._tray.close()
+            self._tray = None
         if self._hud:
             self._hud.close()
             self._hud = None
@@ -321,6 +340,71 @@ class DoubaoInputApp(Gtk.Application):
                 "Myna HUD 不可用,沿用内置悬浮窗: %s", self._hud.renderer_status()
             )
         return self._use_hud
+
+    # ---- 托盘 ----
+
+    def _build_tray(self) -> None:
+        """建托盘图标。任何失败都静默:没有 SNI 宿主(GNOME 默认)只是不显示。"""
+        try:
+            self._tray = Tray(
+                on_show=self._show_control_window,
+                on_check_mic=self._check_mic,
+                on_quit=self._quit,
+                on_registered=self._on_tray_registered,
+            )
+        except Exception as e:
+            logger.info("tray unavailable, continuing without it: %s", e)
+            self._tray = None
+
+    def _on_tray_registered(self, registered: bool) -> None:
+        """托盘真的显示出来了,才允许「关窗 = 隐藏」。
+
+        顺序很重要(照 mihomo-manifold 的做法):没有图标的时候把窗口
+        藏起来,就再也没有入口把它叫回来了——应用活着却完全无法触达。
+        """
+        if not registered:
+            return
+        self._tray_ready = True
+        # 回调可能在 _control 建好之前就到了(注册是异步的),所以两边
+        # 都要叫一次;set_hide_on_close 是幂等的。
+        self._apply_hide_on_close()
+        # 最后一个窗口关掉后 GTK 会结束应用(连带停止 evdev 监听),
+        # hold() 把它抱住,直到托盘菜单里点「退出」。
+        if self._held:
+            return
+        self.hold()
+        self._held = True
+        logger.info("tray: hide-on-close enabled, app held open")
+
+    def _apply_hide_on_close(self) -> None:
+        if not self._tray_ready:
+            return
+        if self._control is not None:
+            try:
+                self._control.set_hide_on_close(True)
+            except Exception as e:
+                logger.debug("set_hide_on_close failed: %s", e)
+
+    def _release_hold(self) -> None:
+        """释放 hold(),否则 quit() 也结束不了应用。"""
+        if not self._held:
+            return
+        self._held = False
+        try:
+            self.release()
+        except Exception as e:
+            logger.debug("application.release() failed: %s", e)
+
+    def _show_control_window(self) -> None:
+        """托盘菜单 / 左键点击的统一入口。"""
+        if self._control is not None:
+            self._control.show()
+            return
+        self.activate()
+
+    def _on_recording_state(self, _state, value: str) -> None:
+        if self._tray is not None:
+            self._tray.set_recording(value in ("starting", "recording"))
 
     def _on_hud_failed(self, message: str) -> None:
         logger.error("Myna HUD 失效,回退到内置悬浮窗: %s", message)
@@ -534,6 +618,11 @@ class DoubaoInputApp(Gtk.Application):
         tm.on_params_needed = self._provide_params
         self._tm = tm
 
+        # ---- 托盘(StatusNotifierItem,失败静默;见 ui/tray.py) ----
+        # 必须在控制窗口之前建:菜单里的「显示控制窗口」要用到 self._control,
+        # 但回调是延迟触发的,那时 _control 已经存在。
+        self._build_tray()
+
         # ---- Control window ----
         self._control = ControlWindow(
             app_state=self.app_state,
@@ -576,6 +665,8 @@ class DoubaoInputApp(Gtk.Application):
             on_about=self._show_about,
             on_language_changed=self._rebuild_onboarding,
         )
+        # 托盘回调可能比 _control 早到(注册是异步的),这里补一刀。
+        self._apply_hide_on_close()
 
         # ---- Initial state: cached params? ----
         if ParamsStore.has_saved():
@@ -602,6 +693,9 @@ class DoubaoInputApp(Gtk.Application):
         if not started:
             logger.warning("evdev PTT failed to start; will retry in background")
             # Don't block; user can still open the control window to diagnose.
+
+        # 录音状态 -> 托盘图标(录音中换 Attention 图标)
+        self.app_state.connect("recording-state-changed", self._on_recording_state)
 
         logger.info("build complete")
 
@@ -988,6 +1082,9 @@ class DoubaoInputApp(Gtk.Application):
     def _quit(self) -> None:
         if self._tm and self.app_state.recording_state != RecordingState.IDLE:
             self._tm.handle_cancel()
+        if self._tray is not None:
+            self._tray.close()
+            self._tray = None
         if self._hud:
             self._hud.close()
             self._hud = None
@@ -995,4 +1092,6 @@ class DoubaoInputApp(Gtk.Application):
             self._ptt.stop()
         if self._injector:
             self._injector.close()
+        # 先放掉 hold(),否则 quit() 只是发个请求、应用继续活着。
+        self._release_hold()
         self.quit()

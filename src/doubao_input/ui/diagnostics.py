@@ -100,6 +100,7 @@ def collect(app) -> str:
             )
             add(f"最近错误: {redact(head)}({stamp})")
     add(f"GNOME 扩展: {'已启用' if _extension_enabled(app) else '未启用'}")
+    add(f"托盘图标: {_tray_status(app)}")
     add(f"evdev 监听: {'运行中' if _ptt_running(app) else '未运行'}")
     add("")
 
@@ -142,6 +143,17 @@ def _extension_enabled(app) -> bool:
         return False
 
 
+def _tray_status(app) -> str:
+    """托盘状态。没装 AppIndicator 扩展时这里会明说,而不是笼统地"不可用"。"""
+    tray = getattr(app, "_tray", None)
+    if tray is None:
+        return "未创建"
+    try:
+        return tray.status()
+    except Exception:
+        return "未知"
+
+
 def _ptt_running(app) -> bool:
     try:
         return bool(app._ptt and app._ptt.is_running())
@@ -161,4 +173,10 @@ def _problems(app) -> list[str]:
         problems.append("提示音不可用(缺 canberra-gtk-play / libcanberra)")
     if not shutil.which("wl-copy"):
         problems.append("缺 wl-copy(wl-clipboard),注入会失败")
+    tray = getattr(app, "_tray", None)
+    if tray is not None and not getattr(tray, "available", False):
+        problems.append(
+            "托盘图标未显示:桌面没有 StatusNotifierItem 宿主"
+            "(GNOME 需装 AppIndicator 扩展,如 gnome-shell-extension-appindicator)"
+        )
     return problems

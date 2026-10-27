@@ -195,6 +195,10 @@ class ControlWindow:
         self._banner = None
         self._toast_overlay = None
         self._app_state.connect("login-status-changed", self._on_status_changed)
+        # 关窗口 = 隐藏到托盘(不是退出)。只有托盘菜单的「退出」才真退出。
+        # 与 mihomo-manifold 的做法一致:没托盘时就退化成「关掉即退出」,
+        # 否则窗口一关应用就失联了(没有入口能把它叫回来)。
+        self._hide_on_close = False
 
     # ---- public ----
 
@@ -208,6 +212,22 @@ class ControlWindow:
     def hide(self) -> None:
         if self._window:
             self._window.set_visible(False)
+
+    def set_hide_on_close(self, enabled: bool) -> None:
+        """关窗时隐藏而不是退出。只应在托盘图标真的显示出来之后打开。"""
+        self._hide_on_close = bool(enabled)
+
+    def _on_close_request(self, _window) -> bool:
+        """返回 True 阻止默认的 destroy。
+
+        托盘可用时把窗口收起来(应用继续常驻、热键监听不断),
+        托盘不可用时返回 False,让 GTK 走正常的关窗→应用退出。
+        """
+        if not self._hide_on_close:
+            return False
+        logger.info("control window closed -> hidden to tray")
+        self._window.set_visible(False)
+        return True
 
     def destroy(self) -> None:
         if not self._window:
@@ -540,7 +560,10 @@ class ControlWindow:
 
         quit_group = Adw.PreferencesGroup(title=_("Application"))
         diag.add(quit_group)
-        quit_row = Adw.ActionRow(title=_("Quit"), subtitle=_("Stop listening and close the floating window"))
+        quit_row = Adw.ActionRow(
+            title=_("Quit"),
+            subtitle=_("Stop listening and quit completely; closing the window only hides it to the tray"),
+        )
         quit_button = Gtk.Button.new_with_label(_("Quit"))
         quit_button.set_valign(Gtk.Align.CENTER)
         quit_button.add_css_class("destructive-action")
@@ -611,6 +634,7 @@ class ControlWindow:
         stack.add_titled_with_icon(input_page, "input", _("Input"), "input-keyboard-symbolic")
         stack.add_titled_with_icon(diag, "diagnostics", _("Diagnostics"), "preferences-system-symbolic")
 
+        win.connect("close-request", self._on_close_request)
         self._window = win
 
     # ---------- 退化路径:纯 GTK4 ----------
@@ -705,6 +729,7 @@ class ControlWindow:
         box.append(quit_btn)
 
         win.set_child(box)
+        win.connect("close-request", self._on_close_request)
         self._window = win
 
     # ---- 行回调 ----
