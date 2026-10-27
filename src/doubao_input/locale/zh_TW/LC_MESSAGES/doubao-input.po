@@ -102,9 +102,6 @@ msgstr "目前桌面不支援寫入自訂快速鍵(需要 GNOME 或 Xfce)"
 msgid "Current status"
 msgstr "目前狀態"
 
-msgid "Default (level bar)"
-msgstr "Default(電平條)"
-
 msgid "Desktop shortcut"
 msgstr "桌面快速鍵"
 
@@ -153,9 +150,6 @@ msgstr "未啟用"
 msgid "Doubao Account"
 msgstr "豆包帳號"
 
-msgid "Doubao Dictation"
-msgstr "豆包聽寫"
-
 msgid "Doubao Voice Input"
 msgstr "豆包語音輸入法"
 
@@ -177,14 +171,8 @@ msgstr "快速鍵設定失敗: %s"
 msgid "Failed to start the microphone: %s"
 msgstr "麥克風啟動失敗: %s"
 
-msgid "Falls back to the built-in floating window; to get Myna's original placement, run bash scripts/install-gnome-extension.sh and re-login."
-msgstr "會退回內建的懸浮視窗;想拿到 Myna 原版的定位,再執行 bash scripts/install-gnome-extension.sh 並登出重新登入"
-
 msgid "Finish"
 msgstr "完成"
-
-msgid "Finish signing in from the control window"
-msgstr "請先在控制視窗完成登入"
 
 msgid "Floating capsule"
 msgstr "懸浮膠囊"
@@ -197,9 +185,6 @@ msgstr "懸浮視窗狀態未知 (%s)"
 
 msgid "Focus left the window; nothing was typed"
 msgstr "焦點已離開,本次未輸入"
-
-msgid "Hold to talk (release to stop)"
-msgstr "按住說話(放開即結束)"
 
 msgid "Injecting the test string now…"
 msgstr "正在注入 'hello 測試 123'…"
@@ -222,15 +207,6 @@ msgstr "語言"
 msgid "Latest error"
 msgstr "最近錯誤"
 
-msgid "Left Alt"
-msgstr "左 Alt"
-
-msgid "Left Ctrl"
-msgstr "左 Ctrl"
-
-msgid "Left Super"
-msgstr "左 Super"
-
 msgid "Listening…"
 msgstr "聆聽中…"
 
@@ -249,9 +225,6 @@ msgstr "直接監聽 /dev/input/event*,不需要桌面配合"
 msgid "Myna behavior: drops the current dictation as soon as focus leaves"
 msgstr "Myna 的行為:焦點一離開就丟棄本次內容"
 
-msgid "Myna's hud-style (only affects the Myna capsule)"
-msgstr "Myna 的 hud-style(僅對 Myna 膠囊生效)"
-
 msgid "Neither xdotool nor xprop found, and GNOME Shell's Eval interface is unavailable"
 msgstr "未找到 xdotool / xprop,且 GNOME Shell 的 Eval 介面不可用"
 
@@ -263,9 +236,6 @@ msgstr "無"
 
 msgid "Not set"
 msgstr "未設定"
-
-msgid "Not signed in"
-msgstr "未登入"
 
 msgid "Not signed in to Doubao yet; holding Right Ctrl won't trigger recognition"
 msgstr "尚未登入豆包,按住右 Ctrl 不會觸發辨識"
@@ -306,12 +276,6 @@ msgstr "實體鍵已設為 %s"
 msgid "Played on start / stop / error"
 msgstr "開始 / 結束 / 錯誤時播放"
 
-msgid "Please speak into the microphone"
-msgstr "請對麥克風說話"
-
-msgid "Press a new shortcut…"
-msgstr "按下新的快速鍵…"
-
 msgid "Quit"
 msgstr "退出"
 
@@ -333,9 +297,6 @@ msgstr "辨識由豆包的網頁服務完成;登入憑證只保存在本機。"
 msgid "Refresh"
 msgstr "重新整理"
 
-msgid "Rendered by Myna's myna-hud; off falls back to the built-in floating window"
-msgstr "由 Myna 的 myna-hud 繪製;關閉則用內建懸浮視窗"
-
 msgid "Replace"
 msgstr "替換"
 
@@ -344,21 +305,6 @@ msgstr "替換快速鍵?"
 
 msgid "Requires cargo + libgtk-4-dev + libadwaita-1-dev"
 msgstr "需要 cargo + libgtk-4-dev + libadwaita-1-dev"
-
-msgid "Ribbon (wave)"
-msgstr "Ribbon(波浪)"
-
-msgid "Right Alt"
-msgstr "右 Alt"
-
-msgid "Right Ctrl"
-msgstr "右 Ctrl"
-
-msgid "Right Shift"
-msgstr "右 Shift"
-
-msgid "Right Super"
-msgstr "右 Super"
 
 msgid "Run Setup Wizard…"
 msgstr "執行設定精靈…"
@@ -432,9 +378,6 @@ msgstr "停止監聽並徹底結束;關閉視窗只會隱藏到系統匣"
 msgid "Stop on focus loss"
 msgstr "焦點離開時結束"
 
-msgid "Tap to start / tap to stop"
-msgstr "按一下開始 / 再按一下結束"
-
 msgid "Test"
 msgstr "測試"
 
@@ -468,14 +411,8 @@ msgstr "觸發方式: %s"
 msgid "Unknown (%s)"
 msgstr "未知 (%s)"
 
-msgid "Use Ctrl / Alt / Super plus another key, or a function key on its own. Esc cancels."
-msgstr "用 Ctrl / Alt / Super 加上另一個鍵,或單獨的功能鍵。Esc 取消。"
-
 msgid "Use Ctrl+Shift+V"
 msgstr "使用 Ctrl+Shift+V"
-
-msgid "Use Myna floating capsule"
-msgstr "使用 Myna 懸浮膠囊"
 
 msgid "Waveform style"
 msgstr "波形樣式"
@@ -503,3 +440,9 @@ msgstr "未找到 systemctl"
 
 msgid "（no usable player found; silent）"
 msgstr "(找不到可用的播放工具,不會響)"
+
+msgid "Myna's hud-style"
+msgstr "Myna 的膠囊波形樣式"
+
+msgid "The capsule still shows, but the desktop places it; to get Myna's original placement, run bash scripts/install-gnome-extension.sh and re-login."
+msgstr "膠囊照常顯示,但位置由桌面決定;要恢復 Myna 的原版定位,執行 bash scripts/install-gnome-extension.sh 後重新登入。"

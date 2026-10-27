@@ -85,10 +85,10 @@ src/doubao_input/
 │                           to intercept /alice/profile/self + read localStorage.
 │
 └── ui/
-    ├── overlay.py          Top-center "waveform capsule" (PttOverlay). Non-focusable
-    │                       (set_can_focus(False)). Reads RMS, draws scrolling bars,
-    │                       wraps transcription text up to OVERLAY_MAX_LINES.
-    │                       Only used when the Myna HUD is off or unavailable.
+    ├── (removed) overlay.py  The self-drawn rounded-rectangle capsule. Deleted:
+    │                       the UI is now always Myna's capsule, and a missing
+    │                       renderer falls back to desktop notifications instead
+    │                       of a second, differently-shaped window.
     ├── control_window.py   libadwaita settings window, 3 ViewStack pages
     │                       (账号 / 输入 / 诊断) in Myna Settings' style:
     │                       Adw.ApplicationWindow + ToolbarView + HeaderBar +
@@ -182,8 +182,9 @@ The desktop pill can be drawn by Myna's `myna-hud` (Rust/GTK4, built with
   newest slice of the recognized text in the pill.
 - Levels are pushed at ~20 Hz and are **never** deduplicated (R16a): the
   renderer decays by arrival time, so a steady voice must keep refreshing.
-- If the renderer is missing or dies, the app falls back to `ui/overlay.py`
-  silently; recording and injection must keep working either way.
+- If the renderer is missing or dies, status falls back to desktop
+  notifications (`ui/notifier.py`), never to a second capsule window;
+  recording and injection must keep working either way.
 
 ## What "done" looks like for a change
 

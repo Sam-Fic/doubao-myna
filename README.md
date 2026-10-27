@@ -26,7 +26,7 @@
 - **触发语义对齐 Myna**：静音自动结束（默认 30 秒，`0` 为不启用）、空识别结果给出「没有听到内容」的可恢复提示，而非静默失败。
 - **Wayland 原生支持**：通过 `evdev` 监听按键，`uinput` 模拟输入，脱离 X11/XWayland 依赖。
 - **中文输入优化**：采用剪贴板写入配合模拟 Ctrl+V 粘贴机制，避免逐键输入导致的延迟。
-- **悬浮状态窗**：默认集成 Myna 的 `myna-hud`（libadwaita + GPU 波形渲染）。若未安装，自动降级为内置胶囊窗口（18px 圆角、呼吸透明度、流光闪烁动效，纯白粗体文本确保可读性）。
+- **悬浮状态窗**：固定使用 Myna 的 `myna-hud`（libadwaita + GPU 波形渲染，**源码已 vendored 在 `vendor/`**）。界面只有这一种外观——原来的自绘圆角矩形悬浮窗已移除。渲染器起不来时状态改走**桌面通知**，听写与粘贴功能不受影响。
 - **现代化设置界面**：基于 libadwaita 构建三页 PreferencesWindow（账号 / 输入 / 诊断），采用标准组件库。
 - **多语言界面**：源码语言为英文，简体 / 繁体中文通过 gettext 翻译文件（`locale/zh_CN`、`locale/zh_TW`）补充；汉堡菜单里带「语言」子菜单可随时切换（选择记入 `settings.json`，重启后仍生效）；设置窗口、向导、快捷键窗、悬浮窗与桌面通知的文案已全部接入。
 - **后台常驻运行**：设置窗口「输入 → 启动」提供**开机自启开关**（后台走 `systemd --user` 服务；没装 systemd 的机器回退到 `~/.config/autostart` 桌面条目），支持单实例运行及窗口唤起。
@@ -160,15 +160,65 @@ python3 -m venv .venv
   - `idle`：隐藏胶囊。
 - **数据推送**：音频电平（RMS）以 20Hz 频率推送，并进行插值平滑处理。
 
-**启用 Myna 渲染器**：
-```bash
-# 1. 编译渲染器
-bash scripts/build-myna-hud.sh
+#### 识别文字为什么不会把胶囊撑高（单行 + 横向滚动）
 
-# 2. 启动应用（默认开启“使用 Myna 悬浮胶囊”）
-./start.sh
+设置里「使用 Myna 悬浮胶囊」打开时，文字由 **`myna-hud`** 这个独立的 GTK4
+进程绘制。它的源码 **vendored 在本仓库的 `vendor/`** 下，随时可以改：
+
 ```
-若渲染器未安装或启动失败，系统将静默降级至内置悬浮窗（`ui/overlay.py`）。
+vendor/
+├── myna-hud/          ← 胶囊本体（pill / 波形 / D-Bus 消费）
+├── myna-platform/     ← 它依赖的桌面契约 crate
+├── build-support/     ← 版本号生成
+└── Cargo.toml         ← 独立 workspace，不依赖外部 checkout
+```
+
+本项目的改动直接写在 vendored 源码里：胶囊标签从「换行」改成
+「**永远一行 + 宽度封顶 + 旧字往左滚走**」。
+
+| | 上游行为 | 本项目 |
+|---|---|---|
+| 文字变长 | 换行，胶囊越来越**高** | 胶囊**变宽**，高度不变 |
+| 宽度上限 | 无（`max_width_chars(30)` 只约束换行） | 420px（`LABEL_MAX_WIDTH`） |
+| 超出后 | 挤成多行 | 旧字往左滑走，最新字停在右端 |
+
+上游的问题在 `label.set_max_width_chars(30)` 的单位是 Pango 的**平均西文
+字符宽**（Sans 11pt ≈ 7.05px），整行只有约 211px；而一个中文占 15px，
+第 15 个字就换行。
+
+构建（装完 `.deb` 就能直接跑，不需要任何外部源码）：
+
+```bash
+bash scripts/build-myna-hud.sh      # 用 vendor/ 里的源码
+```
+
+想构建**未改动**的上游版本（胶囊会换行）：
+
+```bash
+MYNA_SOURCE_DIR=/path/to/myna bash scripts/build-myna-hud.sh
+```
+
+本项目这一侧只负责送**一段刚好一屏的文本**：`hud/wire.fit_tail` 按显示宽度
+（半角窄字符 1 单位、普通半角 2、中文与全角标点 3，都是实测值向上取整）
+截到 58 个单位 ≈ 420px ≈ 中文 19 字 / 英文 57 字。更长的部分胶囊本来就显示
+不下，留着只会白占 20Hz 的 D-Bus 带宽。
+
+效果（同一句话逐步增长）：
+
+```
+今天下午三点我们和设计团          ← 未满，贴左
+…和设计团队一起开个会讨论新版本      ← 溢出，最早的字被挤掉
+…个会讨论新版本的界面交互细节以及
+…互细节以及下个季度需要交付的功能范围  ← 右端始终是最新说的字
+```
+
+自检：
+
+```bash
+PYTHONPATH=src python3 tests/check_hud_width.py   # 文本宽度预算
+cd vendor && cargo run --release -p myna-hud --example scroll_check
+                                                  # 胶囊真实布局行为
+```
 
 ### GNOME Shell 扩展集成（原生定位）
 Myna 的窗口定位**完全由 GNOME 扩展完成**，`myna-hud` 自己在 Wayland 下从不定位

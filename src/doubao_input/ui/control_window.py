@@ -101,8 +101,6 @@ class ControlWindow:
         on_check_mic_clicked: Callable[[], None],
         on_test_inject_clicked: Optional[Callable[[], None]] = None,
         app: Optional[Gtk.Application] = None,
-        hud_enabled: bool = False,
-        on_hud_toggle: Optional[Callable[[bool], None]] = None,
         hud_status: Optional[Callable[[], str]] = None,
         inject_shift: bool = INJECT_USE_SHIFT,
         on_inject_shift_toggle: Optional[Callable[[bool], None]] = None,
@@ -141,8 +139,6 @@ class ControlWindow:
         self._on_check_mic = on_check_mic_clicked
         self._on_test_inject = on_test_inject_clicked
         self._app = app
-        self._hud_enabled = hud_enabled
-        self._on_hud_toggle = on_hud_toggle
         self._hud_status = hud_status
         self._inject_shift = inject_shift
         self._on_inject_shift_toggle = on_inject_shift_toggle
@@ -483,18 +479,9 @@ class ControlWindow:
 
         hud_group = Adw.PreferencesGroup(title=_("Floating window"))
         input_page.add(hud_group)
-        if self._on_hud_toggle is not None:
-            self._hud_row = Adw.SwitchRow(
-                title=_("Use Myna floating capsule"),
-                subtitle=_("Rendered by Myna's myna-hud; off falls back to the built-in floating window"),
-            )
-            self._hud_row.set_active(self._hud_enabled)
-            self._hud_row.connect("notify::active", self._on_hud_switch)
-            hud_group.add(self._hud_row)
-
         style_row = Adw.ComboRow(
             title=_("Waveform style"),
-            subtitle=_("Myna's hud-style (only affects the Myna capsule)"),
+            subtitle=_("Myna's hud-style"),
         )
         style_row.set_model(Gtk.StringList.new([_(name) for _key, name in HUD_STYLE_CHOICES]))
         for index, (value, _name) in enumerate(HUD_STYLE_CHOICES):
@@ -503,8 +490,6 @@ class ControlWindow:
         style_row.connect("notify::selected", self._on_hud_style_selected)
         hud_group.add(style_row)
         self._hud_style_row = style_row
-        # 波形样式只影响 Myna 胶囊:没开胶囊时置灰,免得用户以为能改内置窗。
-        style_row.set_sensitive(self._hud_enabled)
 
         # 开机自启:状态直接问后端(systemd user service / XDG autostart),
         # 不在 settings.json 里另存一份 —— 用户可能用 systemctl 自己改过。
@@ -677,26 +662,14 @@ class ControlWindow:
             test_btn.set_sensitive(False)
         box.append(test_btn)
 
-        # 悬浮窗开关(Myna 胶囊 / 内置悬浮窗)
-        if self._on_hud_toggle is not None:
-            hud_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-            hud_name = Gtk.Label(label=_("Use Myna floating capsule"))
-            hud_name.set_xalign(0.0)
-            hud_name.set_hexpand(True)
-            hud_switch = Gtk.Switch()
-            hud_switch.set_active(self._hud_enabled)
-            hud_switch.set_valign(Gtk.Align.CENTER)
-            hud_switch.connect("state-set", self._on_hud_switch)
-            hud_box.append(hud_name)
-            hud_box.append(hud_switch)
-            box.append(hud_box)
-
-            self._hud_status_label = Gtk.Label()
-            self._hud_status_label.set_xalign(0.0)
-            self._hud_status_label.set_wrap(True)
-            self._hud_status_label.add_css_class("dim-label")
-            box.append(self._hud_status_label)
-            self._refresh_hud_status()
+        # 胶囊状态(渲染器在不在跑)。这一行是状态,不是外观选择 —— 外观
+        # 固定是 Myna 胶囊,没有可选项。
+        self._hud_status_label = Gtk.Label()
+        self._hud_status_label.set_xalign(0.0)
+        self._hud_status_label.set_wrap(True)
+        self._hud_status_label.add_css_class("dim-label")
+        box.append(self._hud_status_label)
+        self._refresh_hud_status()
 
         # 开机自启(与 Adw 路径共用同一个回调,失败同样回拨 + toast)
         if self._on_autostart_changed is not None:
@@ -733,25 +706,6 @@ class ControlWindow:
         self._window = win
 
     # ---- 行回调 ----
-
-    def _on_hud_switch(self, row, *_args) -> bool:
-        """Adw.SwitchRow 走 notify::active,Gtk.Switch 走 state-set;两种都接。
-
-        注意 Gtk.Switch 的 state-set 在状态真正翻转前触发,那时 get_active()
-        还是旧值,必须取信号带来的参数。
-        """
-        if isinstance(row, Gtk.Switch):
-            active = bool(_args[0]) if _args else row.get_active()
-        else:
-            active = row.get_active()
-        if self._on_hud_toggle is not None:
-            self._on_hud_toggle(bool(active))
-        self._hud_enabled = bool(active)
-        # 波形样式只对 Myna 胶囊有意义,跟着开关置灰。
-        if self._hud_style_row is not None:
-            self._hud_style_row.set_sensitive(self._hud_enabled)
-        GLib.timeout_add(300, lambda: (self._refresh_hud_status(), False)[1])
-        return False
 
     def _on_inject_shift_switch(self, row, _param) -> None:
         active = bool(row.get_active())

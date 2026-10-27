@@ -90,7 +90,7 @@
 |---|---|---|---|
 | 开始/结束/错误提示音 | 有(`sounds` + `sound-set`) | 有开关(`ui/sounds.py`),播系统 freedesktop 事件音,不搬运 Myna 的音频资源 | 🟡 音色不可选 |
 | 桌面通知兜底 | 有 | 有(`ui/notifier.py`) | ✅ |
-| 减弱动效 | 跟随 `gtk-interface-reduced-motion` | Myna 胶囊自动跟随;内置悬浮窗也跟随(`ui/overlay.py`,只读运行时属性,不碰 a11y schema) | ✅ |
+| 减弱动效 | 跟随 `gtk-interface-reduced-motion` | Myna 胶囊自动跟随(只读运行时属性,不碰 a11y schema) | ✅ |
 | 高对比 / 深浅色 | 跟随 Adw.StyleManager | 胶囊跟随;内置悬浮窗是写死的暗色胶囊 | 🟡 |
 | 屏幕阅读器播报 | 状态变化可感知、捕获按键 announce | ❌ 无 | ❌ |
 

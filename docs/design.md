@@ -131,7 +131,7 @@ src/doubao_input/
 │       └── inject-dom.js         [复用]
 │
 └── ui/                    ← 自研：界面（全新设计）
-    ├── overlay.py          按住时的悬浮窗
+    ├── (已移除) overlay.py  自绘圆角矩形悬浮窗(现固定用 Myna 胶囊)
     ├── control_window.py   控制/状态窗口（登录、帮助、退出）
     └── tray.py             StatusNotifierItem 托盘（纯 Gio/D-Bus 实现）
 ```

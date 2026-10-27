@@ -1,7 +1,6 @@
 """用户偏好的持久化(~/.config/doubao-input/settings.json)。
 
 键一览:
-  hud_enabled          悬浮窗用 Myna 胶囊还是内置悬浮窗
   inject_shift         粘贴是 Ctrl+Shift+V 还是 Ctrl+V
   trigger_key / trigger_mode / silence_timeout   触发相关
   sounds               提示音开关
@@ -11,7 +10,8 @@
   language             界面语言(空串 = 跟随系统)
   onboarding_done      首次运行向导是否已完成
 
-旧的 hud.json(只有 hud_enabled)会被自动读进来,不破坏已有配置。
+旧的 hud.json(只有 hud_enabled)仍会被读进来 —— 那个键现在没有意义
+(Myna 胶囊是唯一外观),但不要因为它是旧的就把整个配置丢掉。
 """
 
 from __future__ import annotations
@@ -21,7 +21,6 @@ import logging
 
 from doubao_input.doubao.config import (
     DESKTOP_SHORTCUT,
-    HUD_ENABLED,
     HUD_STYLE,
     INJECT_USE_SHIFT,
     SILENCE_TIMEOUT_SECS,
@@ -75,14 +74,6 @@ def set_value(key: str, value) -> None:
             json.dump(data, fh)
     except Exception as e:
         logger.warning("could not persist %s: %s", key, e)
-
-
-def load_enabled() -> bool:
-    return bool(get("hud_enabled", HUD_ENABLED))
-
-
-def save_enabled(enabled: bool) -> None:
-    set_value("hud_enabled", bool(enabled))
 
 
 def load_inject_shift() -> bool:

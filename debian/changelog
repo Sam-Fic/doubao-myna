@@ -1,3 +1,60 @@
+doubao-input (1.1.6-1) noble; urgency=medium
+
+  * The dictation indicator is now ALWAYS Myna's capsule. The self-drawn
+    rounded-rectangle overlay (ui/overlay.py) is deleted, along with its
+    OVERLAY_* geometry constants and the "Use Myna floating capsule" switch
+    in Settings: there is no second appearance to choose between, and two
+    different-looking capsules for the same app was confusing.
+  * When the renderer is not running, status now falls back to desktop
+    notifications (ui/notifier.py -- Myna's own NotifyIndicator behaviour)
+    instead of swapping in a differently-shaped window. Dictation, the
+    hotkey and paste injection all keep working; the Diagnostics page says
+    why the capsule is missing and how to build it.
+  * Settings: the capsule row is gone entirely rather than turned into a
+    read-only status row -- with one fixed appearance it only restated
+    "you are using the Myna capsule", which never changes. The "Floating
+    window" group now holds just the waveform style row (always enabled,
+    since it always applies).
+  * i18n: dropped the 23 strings that described the removed fallback and
+    the removed capsule row, and reworded one (the extension note) that
+    said the built-in window was the fallback. zh_CN + zh_TW: 0 missing.
+
+ -- doubao-input contributors <code-dream@qq.com>  Tue, 27 Oct 2026 23:30:00 +0800
+
+doubao-input (1.1.5-1) noble; urgency=medium
+
+  * Fixed: with "Use Myna floating capsule" enabled, the capsule grew taller
+    as recognition streamed in and pushed the wave indicator out of place.
+    The status is now **always one line**: the pill widens as text arrives,
+    stops at a fixed width, and the oldest words slide off to the left so
+    the newest stay visible at the right edge. Height is constant for the
+    whole session.
+  * That layout lives in the myna-hud renderer, so its source is now
+    vendored under vendor/ (myna-hud + the myna-platform crate it depends
+    on, from canonical/myna @ 99eba437, AGPL-3.0-or-later, see NOTICE).
+    The change is made directly in the vendored code instead of as a patch
+    applied to somebody else's checkout, so `bash scripts/build-myna-hud.sh`
+    needs no external source tree -- which also means an installed .deb can
+    rebuild the renderer on its own.
+    Upstream's label used `set_wrap(true)` + `set_max_width_chars(30)`,
+    whose unit is Pango's *average Latin character width* (~7.05px at Sans
+    11pt) -- only ~211px for the whole line, while one Chinese character is
+    15px, so Chinese wrapped at the 15th character.
+  * The vendored tree has its own workspace manifest and builds standalone;
+    `MYNA_SOURCE_DIR=...` still builds an unmodified upstream tree
+    (the capsule then wraps).
+  * This side sends a single screenful: hud/wire.fit_tail truncates by
+    DISPLAY WIDTH (narrow half-width 1 unit, normal half-width 2,
+    CJK/full-width punctuation 3, all measured and rounded up) to 58 units
+    (~420px, ~19 Chinese or ~57 Latin characters). Anything longer would not
+    be visible anyway -- the pill's width is capped -- so it would only pad
+    the 20Hz D-Bus payload. Error headlines use the same budget.
+  * Checks: tests/check_hud_width.py for the text budget, and
+    `cargo run -p myna-hud --example scroll_check` for the real capsule
+    layout (one line, constant height, cap at 420px, scrolled to the end).
+
+ -- doubao-input contributors <code-dream@qq.com>  Tue, 27 Oct 2026 21:20:00 +0800
+
 doubao-input (1.1.4-1) noble; urgency=medium
 
   * Tray icon is now Adwaita's monochrome audio-input-microphone-symbolic

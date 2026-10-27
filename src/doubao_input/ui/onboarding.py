@@ -69,7 +69,6 @@ class OnboardingWindow:
         on_trigger_key_set: Optional[Callable[[str], None]] = None,
         on_trigger_mode_set: Optional[Callable[[str], None]] = None,
         hud_status: Optional[Callable[[], str]] = None,
-        hud_enabled: bool = False,
         on_finish: Optional[Callable[[], None]] = None,
         parent: Optional[Gtk.Window] = None,
     ) -> None:
@@ -83,7 +82,6 @@ class OnboardingWindow:
         self._on_trigger_key_set = on_trigger_key_set
         self._on_trigger_mode_set = on_trigger_mode_set
         self._hud_status = hud_status or (lambda: _("Disabled"))
-        self._hud_enabled = hud_enabled
         self._on_finish = on_finish
         self._window: Optional[Gtk.Window] = None
         self._stack: Optional[Gtk.Stack] = None
@@ -332,8 +330,9 @@ class OnboardingWindow:
             Adw.ActionRow(
                 title=_("Works without it"),
                 subtitle=_(
-                    "Falls back to the built-in floating window; to get Myna's "
-                    "original placement, run bash scripts/install-gnome-extension.sh and re-login."
+                    "The capsule still shows, but the desktop places it; to get "
+                    "Myna's original placement, run bash scripts/install-gnome-extension.sh "
+                    "and re-login."
                 ),
             )
         )

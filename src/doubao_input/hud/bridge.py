@@ -43,7 +43,7 @@ from doubao_input.hud.wire import (
     STATUS_FINALIZING,
     STATUS_LISTENING,
     STATUS_NOT_LOGGED_IN,
-    tail,
+    fit_tail,
 )
 
 logger = logging.getLogger(__name__)
@@ -227,7 +227,10 @@ class MynaHudBridge:
         if not value:
             return
         # 豆包的错误信息是给用户看的,内容可控(不含识别内容)。
-        headline = value[:HUD_STATUS_MAX_CHARS]
+        # 与状态文案同一个宽度预算:错误文案也会被画进胶囊,超宽一样会把
+        # 胶囊撑高。用 fit_tail 保留**尾部**(通常是最关键的原因),而不是
+        # 按字符数硬切。
+        headline = fit_tail(value, HUD_STATUS_MAX_CHARS)
         self.error(headline)
         # 顺手记进"最近错误"(粘性,供诊断页读取)。
         if self.enabled:
@@ -240,7 +243,9 @@ class MynaHudBridge:
     def _status_text(self) -> str:
         text = (self._app_state.transcription_text or "").strip()
         if HUD_SHOW_TRANSCRIPT and text:
-            return tail(text, HUD_STATUS_MAX_CHARS)
+            # 按**显示宽度**截断:胶囊那侧是 Pango 的 max_width_chars(30)≈211px,
+            # 14 个中文就顶满。用字符数算会让中文提前换行、把胶囊撑高。
+            return fit_tail(text, HUD_STATUS_MAX_CHARS)
         return STATUS_LISTENING
 
     def _apply(self, state: str, status_message: str) -> None:

@@ -93,17 +93,6 @@ AUTH_EXPIRY_DELAY = 2.0  # seconds before resetting after auth error
 # to accept the paste.
 INJECT_USE_SHIFT = True
 
-# --- Overlay UI ---
-
-OVERLAY_WIDTH = 760
-OVERLAY_HEIGHT = 88
-# Transcription text wraps within this many "characters" (Pango's average
-# char-width unit ~= the old 760px text column) and the overlay grows in
-# height up to OVERLAY_MAX_LINES before the oldest words scroll off.
-OVERLAY_TEXT_CHARS = 88
-OVERLAY_MAX_LINES = 5
-PTT_BUTTON_SIZE = 60
-
 # --- 触发(按键) ---
 # 物理键:evdev 键名(见 `python -c "import evdev; print(sorted(evdev.ecodes.KEY))"`)。
 TRIGGER_KEY_NAME = "KEY_RIGHTCTRL"
@@ -162,17 +151,32 @@ TOGGLE_COMMAND = (
 )
 
 # --- Myna HUD (桌面悬浮胶囊) ---
-# 启用后,桌面的悬浮指示器改用 Myna 的 `myna-hud` 渲染器(GTK4/libadwaita
-# + GPU 波形丝带),豆包的识别/注入逻辑完全不变。渲染器经
+# 桌面的悬浮指示器**只**用 Myna 的 `myna-hud` 渲染器(GTK4/libadwaita +
+# GPU 波形丝带),豆包的识别/注入逻辑完全不变。渲染器经
 # com.canonical.Myna.Dictation 只消费"状态 + 电平"。
-HUD_ENABLED = True              # 也可以在控制窗口里实时开关(记在 hud.json)
+#
+# 以前还有一个自绘的圆角矩形悬浮窗作为回退,现在已移除:两套外观不一致,
+# 用户会看到两个完全不同的东西。渲染器起不来时改为走桌面通知。
 HUD_AUTO_LAUNCH = True          # 自动拉起 myna-hud 进程
 HUD_STYLE = "bar"                 # bar | ribbon | vumeter | progress
 # Myna 的胶囊只显示状态标签(契约 C3 不传识别内容)。豆包的卖点是边说边出字,
 # 所以这里把最新一段识别文本放进 StatusMessage —— 这是一处有意的偏离,
 # 关掉它就退回"聆听中…"这类固定文案。
 HUD_SHOW_TRANSCRIPT = True
-HUD_STATUS_MAX_CHARS = 30       # 与 myna-hud 的 LABEL_MAX_CHARS 一致
+# 胶囊标签的宽度预算,单位是"等宽字符"(见 hud/wire.display_width):
+# 半角 1、全角 3(实测值,向上取整)。
+#
+# **胶囊会自己滚动**:vendored 的 myna-hud(vendor/myna-hud)把标签改成
+# 单行、宽度到 LABEL_MAX_WIDTH(420px)就封顶、最新文字始终停在右端。所以
+# 文字不会把胶囊撑高,滚动也由渲染器负责。
+#
+# 那这里为什么还要截?因为**胶囊宽度已经封顶**:比 420px 更长的那部分只会
+# 躺在滚动缓冲里,用户根本看不到,白白增加 20Hz 的 D-Bus 推送量。所以预算
+# 就取胶囊一行真正能显示的量。
+#
+# 420px ÷ 7.05px(一个等宽单位 at Sans 11pt)≈ 59.6 单位,取 58 留一点余量
+# (中文 19 字 / 英文 57 字)。
+HUD_STATUS_MAX_CHARS = 58       # 等宽字符预算,见 hud/wire.display_width
 HUD_LEVEL_HZ = 20               # 契约 C4 的 15~20Hz
 HUD_NOTICE_HOLD_MS = 6000       # 可恢复提示停留时长
 HUD_ERROR_HOLD_MS = 10000       # 错误提示停留时长

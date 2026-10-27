@@ -1,4 +1,4 @@
-"""Main GtkApplication: orchestrates trigger, ASR, overlay, injector, login.
+"""Main GtkApplication: orchestrates trigger, ASR, HUD capsule, injector, login.
 
 Lifecycle:
   1. On first activate: build all components. Show login window if no
@@ -40,7 +40,6 @@ from doubao_input.doubao.transcription import TranscriptionManager
 from doubao_input.hud.bridge import MynaHudBridge
 from doubao_input.hud.settings import (
     load_desktop_shortcut,
-    load_enabled,
     load_hud_style,
     load_inject_shift,
     load_silence_timeout,
@@ -51,7 +50,6 @@ from doubao_input.hud.settings import (
     load_trigger_key,
     load_trigger_mode,
     save_desktop_shortcut,
-    save_enabled,
     save_hud_style,
     save_inject_shift,
     save_silence_timeout,
@@ -70,7 +68,6 @@ from doubao_input.ui.control_window import ControlWindow
 from doubao_input.ui.focus_watch import focused_identity, reason, supported
 from doubao_input.ui.notifier import Notifier
 from doubao_input.ui.onboarding import OnboardingWindow, available as adw_available
-from doubao_input.ui.overlay import Overlay
 from doubao_input.ui.sounds import Sounds
 from doubao_input.ui.tray import Tray
 
@@ -102,14 +99,13 @@ class DoubaoInputApp(Gtk.Application):
         self.connect("shutdown", self._on_shutdown)
         self._setup_done = False
         self.app_state = AppState()
-        self._overlay: Overlay | None = None
         self._control: ControlWindow | None = None
         self._login_window = None
         self._ptt: EvdevPtt | None = None
         self._tm: TranscriptionManager | None = None
         self._injector: Injector | None = None
         self._last_press_at: float = 0.0
-        # Myna 悬浮胶囊前端(self._hud 存在 != 生效:渲染器没起来就退回内置悬浮窗)
+        # Myna 悬浮胶囊前端(self._hud 存在 != 生效:渲染器没连上就只走桌面通知)
         self._hud: MynaHudBridge | None = None
         self._use_hud = False
         self._inject_shift = load_inject_shift()
@@ -285,7 +281,6 @@ class DoubaoInputApp(Gtk.Application):
                 on_trigger_key_set=self.set_trigger_key,
                 on_trigger_mode_set=self.set_trigger_mode,
                 hud_status=self._hud_status,
-                hud_enabled=self._use_hud,
                 on_finish=lambda: save_onboarding_done(True),
                 parent=self._control._window if self._control else None,
             )
@@ -293,14 +288,12 @@ class DoubaoInputApp(Gtk.Application):
         self._onboarding.refresh()
 
     def _boot_flash_overlay(self) -> bool:
+        """启动时闪一下 —— 让用户看到应用确实活着。只走 Myna 胶囊。"""
         message = self._startup_hint()
         if self._use_hud and self._hud is not None:
             self._hud.flash(NOTICE, message, 3000)
-            return False
-        if self._overlay is None:
-            return False
-        self._overlay.show(message)
-        GLib.timeout_add_seconds(3, lambda: (self._overlay.hide(), False)[1])
+        elif self._notifier is not None:
+            self._notifier.set_state(NOTICE, message)
         return False
 
     def _on_shutdown(self, _app) -> None:
@@ -321,7 +314,7 @@ class DoubaoInputApp(Gtk.Application):
     # ---- Myna HUD 前端 ----
 
     def _start_hud(self) -> bool:
-        """启动 Myna 悬浮胶囊。拿不到 D-Bus 名字或拉不起渲染器就退回内置悬浮窗。"""
+        """启动 Myna 悬浮胶囊(唯一外观)。失败时状态改走桌面通知。"""
         if self._hud is not None:
             self._hud.close()
             self._hud = None
@@ -337,7 +330,7 @@ class DoubaoInputApp(Gtk.Application):
             logger.info("Myna HUD ready: %s", self._hud.renderer_status())
         else:
             logger.warning(
-                "Myna HUD 不可用,沿用内置悬浮窗: %s", self._hud.renderer_status()
+                "Myna 胶囊不可用,状态改走桌面通知: %s", self._hud.renderer_status()
             )
         return self._use_hud
 
@@ -407,7 +400,7 @@ class DoubaoInputApp(Gtk.Application):
             self._tray.set_recording(value in ("starting", "recording"))
 
     def _on_hud_failed(self, message: str) -> None:
-        logger.error("Myna HUD 失效,回退到内置悬浮窗: %s", message)
+        logger.error("Myna 胶囊失效,状态改走桌面通知: %s", message)
         self._use_hud = False
 
     def _hud_status(self) -> str:
@@ -433,17 +426,6 @@ class DoubaoInputApp(Gtk.Application):
         """控制窗口的粘贴方式开关(Ctrl+Shift+V / Ctrl+V)。"""
         self._inject_shift = bool(enabled)
         save_inject_shift(self._inject_shift)
-
-    def set_hud_enabled(self, enabled: bool) -> None:
-        """控制窗口开关:实时切换指示器并记住选择。"""
-        save_enabled(enabled)
-        if enabled:
-            self._start_hud()
-        else:
-            if self._hud is not None:
-                self._hud.close()
-                self._hud = None
-            self._use_hud = False
 
     def set_hud_style(self, nick: str) -> None:
         """胶囊波形样式:bar / ribbon / vumeter。"""
@@ -523,43 +505,38 @@ class DoubaoInputApp(Gtk.Application):
         except Exception as e:
             logger.warning("evdev PTT failed: %s", e)
 
-    # ---- 指示器路由(内置悬浮窗 / Myna 胶囊二选一) ----
+    # ---- 指示器路由(只有 Myna 胶囊) ----
+    #
+    # 界面固定用 Myna 的胶囊(`myna-hud`)。原先还有一套自绘的圆角矩形悬浮窗
+    # (`ui/overlay.py`)作为回退,现在不再使用 —— 两套外观不一致,用户会看到
+    # 两个完全不同的东西。
+    #
+    # 胶囊起不来时**不再换一个窗口**,而是退回桌面通知(`ui/notifier.py`,
+    # 也就是 Myna 自己的 NotifyIndicator 行为):功能不受影响,右 Ctrl 照常
+    # 听写、照常粘贴,只是状态提示走系统通知。诊断页会说明原因。
 
     def _indicator_show(self, wire_state: str, message: str) -> None:
         if self._hud is not None:
             self._hud.set_state(wire_state, message)
-        if not self._use_hud:
-            if self._overlay is not None:
-                self._overlay.show(message)
-            # 胶囊没起来时,状态至少要在通知里看得见(Myna 的兜底)。
-            if self._notifier is not None:
-                self._notifier.set_state(wire_state, message)
+        if not self._use_hud and self._notifier is not None:
+            self._notifier.set_state(wire_state, message)
 
     def _indicator_text(self, message: str) -> None:
         if self._hud is not None:
             self._hud.set_state(RECORDING, message)
-        if self._overlay is not None and not self._use_hud:
-            self._overlay.set_text(message)
 
     def _indicator_notice(self, message: str) -> None:
         """可恢复提示(对齐 Myna 的 notice):不是错误,几秒后自己消失。"""
         if self._use_hud and self._hud is not None:
             self._hud.notice(message)
-        else:
-            if self._overlay is not None:
-                self._overlay.show(message)
-                GLib.timeout_add_seconds(2, lambda: (self._overlay.hide(), False)[1])
-            if self._notifier is not None:
-                self._notifier.set_state(NOTICE, message)
+        elif self._notifier is not None:
+            self._notifier.set_state(NOTICE, message)
 
     def _indicator_hide(self) -> None:
         if self._hud is not None:
             self._hud.idle()
-        if not self._use_hud:
-            if self._overlay is not None:
-                self._overlay.hide()
-            if self._notifier is not None:
-                self._notifier.set_state(IDLE, "")
+        if not self._use_hud and self._notifier is not None:
+            self._notifier.set_state(IDLE, "")
 
     def _push_rms(self, rms: float) -> None:
         """麦克风 RMS 回调(音频线程)。这里只写值,不碰 GTK。"""
@@ -567,22 +544,19 @@ class DoubaoInputApp(Gtk.Application):
             self._last_voice_at = time.monotonic()
         if self._hud is not None:
             self._hud.push_level(rms)
-        if self._overlay is not None and not self._use_hud:
-            self._overlay.push_rms(rms)
 
     # ---- build ----
 
     def _build(self) -> None:
-        self._overlay = Overlay()
         self._injector = Injector()
         # 胶囊没起来时的兜底:状态走桌面通知(Myna 的 NotifyIndicator)。
         self._notifier = Notifier(self)
         # 任何错误都出一声(Myna:严重错误必播 Error)。
         self.app_state.connect("error-message-changed", self._on_error_message)
 
-        # ---- Myna HUD:桌面上那个胶囊可以换成 Myna 的渲染器 ----
-        if load_enabled():
-            self._start_hud()
+        # ---- Myna HUD:界面固定用 Myna 的胶囊 ----
+        # 不再有“用 Myna 胶囊 / 用内置悬浮窗”的开关 —— 只有这一种外观。
+        self._start_hud()
 
         # ---- TranscriptionManager (state machine) ----
         tm = TranscriptionManager(self.app_state)
@@ -631,8 +605,6 @@ class DoubaoInputApp(Gtk.Application):
             on_check_mic_clicked=self._check_mic,
             on_test_inject_clicked=self._test_inject,
             app=self,
-            hud_enabled=self._use_hud,
-            on_hud_toggle=self.set_hud_enabled,
             hud_status=self._hud_status,
             inject_shift=self._inject_shift,
             on_inject_shift_toggle=self.set_inject_shift,
@@ -729,9 +701,8 @@ class DoubaoInputApp(Gtk.Application):
     def _not_logged_in(self) -> None:
         if self._use_hud and self._hud is not None:
             self._hud.notice(_("Sign in from the control window to start dictating"))
-        elif self._overlay is not None:
-            self._overlay.set_text(_("Finish signing in from the control window"))
-            self._overlay.show(_("Not signed in"))
+        elif self._notifier is not None:
+            self._notifier.set_state(NOTICE, _("Sign in from the control window to start dictating"))
 
     def _start_session(self) -> None:
         if not self._tm:
@@ -911,12 +882,6 @@ class DoubaoInputApp(Gtk.Application):
         # Myna 胶囊也要先消失,否则注入的 Ctrl+V 会落到我们的窗口上。
         if self._hud is not None:
             self._hud.set_state(IDLE, "")
-        # 胶囊(录音指示器)先消失:会话结束了,它不该还在屏幕上。
-        if self._overlay is not None and self._overlay._window:
-            try:
-                self._overlay._window.set_visible(False)
-            except Exception:
-                pass
         # 控制窗口**只有真的抢到焦点时才需要躲**:注入的 Ctrl+V 会落到
         # 当时有焦点的窗口上,而我们没焦点时它本来就收不到。
         # (以前是无条件隐藏 + 600ms 后恢复,于是每次粘贴完设置窗口都会
@@ -1039,9 +1004,6 @@ class DoubaoInputApp(Gtk.Application):
         """3-second mic test: open stream, push RMS to the indicator, then close."""
         if self._use_hud and self._hud is not None:
             self._hud.flash(RECORDING, _("Testing the microphone…"), 4000)
-        else:
-            self._overlay.show(_("Testing the microphone…"))
-            self._overlay.set_text(_("Please speak into the microphone"))
 
         captured: list[float] = []
         cap = self._audio_capture
@@ -1055,8 +1017,8 @@ class DoubaoInputApp(Gtk.Application):
         try:
             cap.start(on_audio_data=lambda b: None)
         except Exception as e:
-            self._overlay.set_text(_("Failed to start the microphone: %s") % e)
-            GLib.timeout_add(1500, lambda: self._overlay.hide() or False)
+            if self._control is not None:
+                self._control.toast(_("Failed to start the microphone: %s") % e)
             return
 
         def stop_and_report():
@@ -1070,8 +1032,6 @@ class DoubaoInputApp(Gtk.Application):
                 message = _("Test complete (no data)")
             if self._use_hud and self._hud is not None:
                 self._hud.flash(RECORDING, message, 1500)
-            else:
-                self._overlay.set_text(message)
             if self._control is not None:
                 self._control.toast(message)
             return False

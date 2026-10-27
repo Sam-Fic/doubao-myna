@@ -168,7 +168,7 @@ def _problems(app) -> list[str]:
     if not _ptt_running(app):
         problems.append("evdev 监听未运行(检查是否在 input 组、是否有可读的 /dev/input/event*)")
     if app._hud is None or not app._use_hud:
-        problems.append("Myna 胶囊不可用,当前用内置悬浮窗(跑 scripts/build-myna-hud.sh 可装上)")
+        problems.append("Myna 胶囊不可用,状态只能走桌面通知(跑 scripts/build-myna-hud.sh 可装上)")
     if app._sounds.available is False:
         problems.append("提示音不可用(缺 canberra-gtk-play / libcanberra)")
     if not shutil.which("wl-copy"):
