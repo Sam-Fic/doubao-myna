@@ -37,24 +37,78 @@ Tests under `tests/probe/` are original work.
 
 The desktop presentation layer is modelled on / wired to
 **Myna** (https://github.com/canonical/myna), which is licensed under the
-**GNU Affero General Public License v3.0 or later**:
+**GNU Affero General Public License v3.0 or later** — the same licence as
+this project.
+
+### Vendored renderer: `vendor/`
+
+`vendor/myna-hud/`, `vendor/myna-platform/` and `vendor/build-support/`
+are copied from Myna at commit
+
+    99eba4370ffea3b0d3ab9f1c9edefc53a8bb798d   (2026-10-19)
+
+into this repository, because the floating capsule's layout had to be
+changed (see below) and the renderer is a separate program we ship
+sources for. Each vendored file keeps its original contents apart from the
+modifications listed here:
+
+  1. `myna-hud/src/pill.rs`
+     - `LABEL_MAX_CHARS: i32 = 30` replaced by `LABEL_MAX_WIDTH: i32 = 420`
+       (pixels) plus `LABEL_MIN_WIDTH`. The old constant was handed to
+       `GtkLabel::set_max_width_chars`, whose unit is Pango's *average Latin
+       character width* — keeping a status on one line by that measure is
+       not possible for CJK text.
+     - The status label no longer wraps (`set_wrap(false)` +
+       `set_single_line_mode(true)`) and sits inside a `GtkScrolledWindow`
+       capped at `LABEL_MAX_WIDTH`, so it stays one line while the pill
+       widens and then scrolls.
+     - `scroll_label_to_end()` added: parks the horizontal adjustment at its
+       maximum after each status change, so the newest words stay visible
+       and the oldest scroll off to the left.
+     - `label_max_width()` / `fixed_chrome_width()` accessors added for the
+       window's sizing.
+     - `PILL_HEIGHT` raised 58 -> 60, the measured content height with the
+       label viewport in place, so the pill does not grow 2px on the first
+       status.
+  2. `myna-hud/src/window.rs`
+     - `fit_size()` caps the window width at
+       `fixed_chrome_width() + label_max_width()`. A `GtkScrolledWindow`
+       reports its child's width as its *minimum*, which
+       `set_max_content_width` does not clamp, so the cap has to be applied
+       here.
+  3. `myna-hud/src/style.css`
+     - `.myna-hud-label-view` rule added, making the viewport invisible (no
+       frame, background or overshoot indicator).
+  4. `vendor/Cargo.toml` is not upstream's: it is a small workspace manifest
+     listing the two vendored crates, so the tree builds standalone with
+     `cargo build -p myna-hud` and needs no external checkout.
+  5. `vendor/myna-hud/examples/scroll_check.rs` is new work for this
+     project: a graphical self-check that the capsule stays one line at a
+     constant height, stops widening at `LABEL_MAX_WIDTH` and scrolls to the
+     end.
+  6. Tests, docs and unrelated modules are vendored unmodified.
+
+`vendor/.version` is generated at packaging time (`debian/rules`) from
+`debian/changelog`; upstream resolves it from git or a staged file.
+
+Build: `scripts/build-myna-hud.sh` compiles `vendor/` and installs the
+binary to `~/.local/bin/myna-hud`. Passing `MYNA_SOURCE_DIR=/path/to/myna`
+builds an *unmodified* upstream tree instead (the capsule then wraps).
+
+### Not vendored
 
   - The application icon (`src/doubao_input/resources/logo.svg`, installed
-    as `debian/doubao-input.svg`) is Myna's icon
-    (`client/data/icons/hicolor/scalable/apps/com.canonical.Myna.svg`),
-    used unmodified.
-  - The optional floating indicator is drawn by Myna's `myna-hud`
-    renderer, driven over the `com.canonical.Myna.Dictation` D-Bus
-    interface (`src/doubao_input/hud/`). No Myna source code is linked
-    into or compiled with this project: the renderer is a separate
-    process, built from Myna's own source tree by
-    `scripts/build-myna-hud.sh`, and the GNOME Shell overlay host is
-    installed from Myna's tree by `scripts/install-gnome-extension.sh`.
-  - The settings window (`src/doubao_input/ui/control_window.py`) is
-    original code written in Myna Settings' libadwaita style
-    (Adw.ApplicationWindow / ToolbarView / ViewStack / PreferencesPage);
-    it is a re-implementation of the look, not a copy of Myna's source.
+    as `doubao-input.svg`) is Myna's icon
+    (`client/data/icons/hicolor/scalable/apps/com.canonical.Myna.svg`), used
+    unmodified.
+  - The GNOME Shell overlay host is **not** distributed here: an installed
+    `myna-shell@canonical.com` extension (from Myna's own tree, installed by
+    `scripts/install-gnome-extension.sh`) hosts the renderer's window when
+    present. Without it the renderer presents as an ordinary window.
+  - The settings window (`src/doubao_input/ui/control_window.py`) is original
+    code written in Myna Settings' libadwaita style
+    (Adw.ApplicationWindow / ToolbarView / ViewStack / PreferencesPage); it
+    is a re-implementation of the look, not a copy of Myna's source.
 
-Because Myna is AGPL-3.0-or-later and its icon is used as an asset here,
-this notice records the attribution; the Myna-derived binaries are only
-ever run as separate processes and are not distributed by this project.
+Because both projects are AGPL-3.0-or-later, the vendored sources are
+redistributed here under the same terms (see `LICENSE`).

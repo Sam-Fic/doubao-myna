@@ -80,6 +80,21 @@ override_dh_auto_install:
 	# 否则 GNOME Shell 的图标缓存要等下一次注销才刷新。
 	# (见 debian/doubao-input.triggers)
 
+	# 胶囊渲染器的**源码**和构建脚本一起装上。
+	#
+	# myna-hud 的界面代码(含本项目「单行 + 横向滚动」的改动)vendored 在
+	# vendor/ 下,所以装完包就能直接重建渲染器,不需要 ~/Desktop/myna
+	# 或任何外部 checkout。
+	install -d debian/doubao-input/usr/share/doubao-input
+	cp -a vendor debian/doubao-input/usr/share/doubao-input/vendor
+	rm -rf debian/doubao-input/usr/share/doubao-input/vendor/target
+	# vendored 树的版本号跟着包版本走(myna-hud --version 报的就是它)。
+	dpkg-parsechangelog -SVersion | sed 's/-[^-]*$$//' \
+	    > debian/doubao-input/usr/share/doubao-input/vendor/.version
+	install -d debian/doubao-input/usr/share/doubao-input/scripts
+	install -m 0755 scripts/build-myna-hud.sh \
+	    debian/doubao-input/usr/share/doubao-input/scripts/
+
 	# Docs
 	install -d debian/doubao-input/usr/share/doc/doubao-input
 	install -m 0644 README.md LICENSE NOTICE docs/design.md \

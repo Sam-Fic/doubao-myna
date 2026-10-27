@@ -82,3 +82,8 @@ debian/*.debhelper
 
 # gettext 编译产物(.po 由 i18n 在运行时现编)
 src/doubao_input/locale/*/LC_MESSAGES/*.mo
+
+# vendored myna-hud:构建产物与运行时生成的版本号
+# (.version 在打包时由 debian/rules 按 changelog 重新生成)
+vendor/target/
+vendor/.version
