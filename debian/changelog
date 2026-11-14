@@ -40,6 +40,8 @@ doubao-input (1.1.7-1) noble; urgency=medium
     above focused window, surface gone at idle, plain hosted mode
     unchanged).
 
+ -- doubao-input contributors <code-dream@qq.com>  Fri, 14 Nov 2026 19:40:00 +0800
+
 doubao-input (1.1.6-1) noble; urgency=medium
 
   * The dictation indicator is now ALWAYS Myna's capsule. The self-drawn

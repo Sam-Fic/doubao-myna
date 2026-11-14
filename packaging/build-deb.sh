@@ -33,9 +33,13 @@ if [ "$BUILDER" = "debuild" ]; then
     debuild -us -uc -b
 else
     # dpkg-buildpackage wants the source tree to have a parent dir
-    # matching the package name; build out-of-tree.
+    # matching the package name; build out-of-tree. Copy with tar so the
+    # local build tree's heavy untracked dirs (vendor/target is a Rust
+    # build tree, several GB) don't fill /tmp -- which would abort the
+    # copy mid-way and, with set -e, leak the half-written temp dir.
     TMP=$(mktemp -d)
-    cp -a "$ROOT/." "$TMP/doubao-input/"
+    mkdir -p "$TMP/doubao-input"
+    tar -c --exclude-vcs --exclude='vendor/target' -C "$ROOT" . | tar -x -C "$TMP/doubao-input"
     cd "$TMP/doubao-input"
     dpkg-buildpackage -us -uc -b
     cp -a "$TMP"/doubao-input_*.* "$ROOT/" 2>/dev/null || true
