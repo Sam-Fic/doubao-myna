@@ -1,3 +1,45 @@
+doubao-input (1.1.7-1) noble; urgency=medium
+
+  * The dictation capsule now places itself at the bottom-centre of the
+    screen without the GNOME myna-shell extension: vendored myna-hud
+    gains an `--anchor bottom` self-hosting mode and hud/launcher.py
+    picks the placement flag per session. Sessions without the extension
+    previously left the pill wherever the compositor puts ordinary
+    windows (screen centre on most).
+  * Channel is chosen at runtime: compositors that speak
+    zwlr_layer_shell_v1 (niri, sway, Hyprland, KDE, ...) get a native
+    Wayland layer surface (Top layer, bottom edge anchored, 24 px above
+    it, keyboard none, click-through kept); GNOME (mutter has no
+    layer-shell, mutter#973) commits to the X11 host over XWayland
+    before GTK init; a plain X11 session keeps the existing `--host
+    x11`; neither available falls back to compositor placement as
+    before.
+  * The X11 host additionally requests _NET_WM_STATE_ABOVE (same client
+    message as STICKY) after every map: mutters have no notification
+    layer, so without it the pill could end up under the window being
+    dictated into. Harmless on xfwm4, which stacks NOTIFICATION above
+    anyway.
+  * `--host x11`'s session guard widens from "X11 session only" to "an
+    X display exists (X11 session or XWayland)", failing with the same
+    exit 78 when none does; a dead DISPLAY now fails at GTK init instead
+    of being misread as a refusal. Default (no flag) behaviour and the
+    extension-hosted path are unchanged; the extension remains the best
+    channel (focus monitor, dash-to-dock avoidance, supervised restart).
+  * Build: scripts/build-myna-hud.sh probes pkg-config for
+    gtk4-layer-shell-0 and compiles the layer-shell channel only when
+    present (optional `layer-shell` cargo feature). The bindings are the
+    0.7 generation -- 0.8 pulls gtk4-layer-shell-sys 0.6, which links
+    gtk4-sys 0.11 and conflicts with this crate's gtk4 0.10 stack.
+    Without the library the build still succeeds and `--anchor bottom`
+    falls back to XWayland; the .deb build (no Rust) is unaffected.
+  * Tests: 7 new unit tests for the flag parsing and backend guards; the
+    X11 e2e now asserts the sticky+above client message and adds two
+    guard tests (no X display -> 78, dead DISPLAY -> GTK init failure)
+    with per-test temp dirs so they pass in parallel. Full vendored
+    cargo test suite passes; verified on niri 26.04 (bottom-centre,
+    above focused window, surface gone at idle, plain hosted mode
+    unchanged).
+
 doubao-input (1.1.6-1) noble; urgency=medium
 
   * The dictation indicator is now ALWAYS Myna's capsule. The self-drawn
