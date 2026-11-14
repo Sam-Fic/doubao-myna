@@ -86,6 +86,7 @@ x11rb::atom_manager! {
         _NET_WM_WINDOW_TYPE_NOTIFICATION,
         _NET_WM_STATE,
         _NET_WM_STATE_STICKY,
+        _NET_WM_STATE_ABOVE,
         _NET_WM_STATE_SKIP_TASKBAR,
         _NET_WM_STATE_SKIP_PAGER,
         _NET_WM_USER_TIME,
@@ -459,7 +460,8 @@ fn the_hud_hosts_itself_on_x11() {
     while !messages.iter().any(|m| {
         matches!(m, Seen::Message { window, kind, data }
             if *window == first.window && *kind == atoms._NET_WM_STATE
-                && data[0] == 1 && data[1] == atoms._NET_WM_STATE_STICKY)
+                && data[0] == 1 && data[1] == atoms._NET_WM_STATE_STICKY
+                && data[2] == atoms._NET_WM_STATE_ABOVE)
     }) {
         let left = deadline.saturating_duration_since(Instant::now());
         messages.push(seen.recv_timeout(left).expect("no sticky request"));
@@ -529,8 +531,42 @@ fn the_hud_hosts_itself_on_x11() {
 }
 
 #[test]
-fn the_x11_host_refuses_a_wayland_session() {
-    let runtime = std::env::temp_dir().join(format!("myna-hud-x11-host-{}", std::process::id()));
+fn the_x11_host_refuses_a_session_without_an_x_display() {
+    // A pure Wayland session — no DISPLAY, so no XWayland to host on. Since
+    // `--anchor bottom` the host may run over XWayland (a mutter), but with
+    // no X display at all there is nowhere to host.
+    let runtime = std::env::temp_dir().join(format!(
+        "myna-hud-x11-host-{}-no-display",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&runtime).unwrap();
+    let socket = runtime.join("wayland-test");
+    let _ = std::fs::remove_file(&socket);
+    let _listener = std::os::unix::net::UnixListener::bind(&socket).unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_myna-hud"))
+        .args(["--host=x11"])
+        .env("XDG_RUNTIME_DIR", &runtime)
+        .env("WAYLAND_DISPLAY", "wayland-test")
+        .env_remove("DISPLAY")
+        .output()
+        .expect("run myna-hud");
+    let _ = std::fs::remove_dir_all(&runtime);
+
+    assert_eq!(output.status.code(), Some(78), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("needs an X display"), "{stderr}");
+}
+
+#[test]
+fn a_dead_x_display_is_an_error_not_a_refusal() {
+    // A Wayland session with an XWayland `DISPLAY` nobody listens on passes
+    // the host's guard (XWayland is legitimate) and then fails at GTK init.
+    // The socket path is unique per test: these tests run in parallel.
+    let runtime = std::env::temp_dir().join(format!(
+        "myna-hud-x11-host-{}-dead-display",
+        std::process::id()
+    ));
     std::fs::create_dir_all(&runtime).unwrap();
     let socket = runtime.join("wayland-test");
     let _ = std::fs::remove_file(&socket);
@@ -545,9 +581,10 @@ fn the_x11_host_refuses_a_wayland_session() {
         .expect("run myna-hud");
     let _ = std::fs::remove_dir_all(&runtime);
 
-    assert_eq!(output.status.code(), Some(78), "{output:?}");
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("needs an X11 session"), "{stderr}");
+    assert!(!stderr.contains("needs an X display"), "{stderr}");
+    assert!(stderr.contains("cannot open a display"), "{stderr}");
 }
 
 #[test]

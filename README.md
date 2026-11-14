@@ -26,7 +26,7 @@
 - **触发语义对齐 Myna**：静音自动结束（默认 30 秒，`0` 为不启用）、空识别结果给出「没有听到内容」的可恢复提示，而非静默失败。
 - **Wayland 原生支持**：通过 `evdev` 监听按键，`uinput` 模拟输入，脱离 X11/XWayland 依赖。
 - **中文输入优化**：采用剪贴板写入配合模拟 Ctrl+V 粘贴机制，避免逐键输入导致的延迟。
-- **悬浮状态窗**：固定使用 Myna 的 `myna-hud`（libadwaita + GPU 波形渲染，**源码已 vendored 在 `vendor/`**）。界面只有这一种外观——原来的自绘圆角矩形悬浮窗已移除。渲染器起不来时状态改走**桌面通知**，听写与粘贴功能不受影响。
+- **悬浮状态窗**：固定使用 Myna 的 `myna-hud`（libadwaita + GPU 波形渲染，**源码已 vendored 在 `vendor/`**）。界面只有这一种外观——原来的自绘圆角矩形悬浮窗已移除。胶囊**不装 GNOME 扩展也钉在屏幕底部居中**（layer-shell / XWayland 自托管，按会话自动选），渲染器起不来时状态改走**桌面通知**，听写与粘贴功能不受影响。
 - **现代化设置界面**：基于 libadwaita 构建三页 PreferencesWindow（账号 / 输入 / 诊断），采用标准组件库。
 - **多语言界面**：源码语言为英文，简体 / 繁体中文通过 gettext 翻译文件（`locale/zh_CN`、`locale/zh_TW`）补充；汉堡菜单里带「语言」子菜单可随时切换（选择记入 `settings.json`，重启后仍生效）；设置窗口、向导、快捷键窗、悬浮窗与桌面通知的文案已全部接入。
 - **后台常驻运行**：设置窗口「输入 → 启动」提供**开机自启开关**（后台走 `systemd --user` 服务；没装 systemd 的机器回退到 `~/.config/autostart` 桌面条目），支持单实例运行及窗口唤起。
@@ -44,7 +44,7 @@
 | 音频服务 | PipeWire 或 PulseAudio |
 | 用户权限 | 当前用户需属于 `input` 组（以访问 `/dev/input/event*` 与 `/dev/uinput`） |
 | GUI 依赖 | `gir1.2-adw-1` 与 `libadwaita-1-0`（缺失时自动降级为纯 GTK4 窗口） |
-| 可选依赖 | `cargo`、`libgtk-4-dev`、`libadwaita-1-dev`（仅用于编译 Myna 的 `myna-hud`） |
+| 可选依赖 | `cargo`、`libgtk-4-dev`、`libadwaita-1-dev`（仅用于编译 Myna 的 `myna-hud`）；`libgtk4-layer-shell-dev`（Wayland 原生钉底通道，缺了自动降级 XWayland） |
 
 ---
 
@@ -220,11 +220,25 @@ cd vendor && cargo run --release -p myna-hud --example scroll_check
                                                   # 胶囊真实布局行为
 ```
 
-### GNOME Shell 扩展集成（原生定位）
-Myna 的窗口定位**完全由 GNOME 扩展完成**，`myna-hud` 自己在 Wayland 下从不定位
-（Myna 源码 `extensions/myna-shell/place.js` 的注释写得很直白：*on Wayland a client
-cannot position itself, so the host computes the frame position and applies it with
-`move_frame`*）。所以想要原版定位，必须让 shell 加载这个扩展：
+### 胶囊摆位：不装扩展也在屏幕底部（GNOME 扩展是可选增强）
+Wayland 的普通窗口没有自我定位 API，GNOME 的 mutter 又不支持 layer-shell 协议
+（[mutter#973](https://gitlab.gnome.org/GNOME/mutter/-/issues/973) 至今未合并）——所以
+Myna 原版要靠一个 GNOME 扩展把窗口当 overlay 摆位。本项目在 vendored `myna-hud` 里
+内置了**无扩展的自托管摆位**，按会话能力自动选通道（`--anchor bottom`）：
+
+| 会话 | 通道 | 效果 |
+|---|---|---|
+| niri / sway / Hyprland / KDE 等 | **layer-shell**（原生 Wayland overlay，Top 层） | 底部居中、上沿 24px、不吃焦点、点击穿透 |
+| GNOME（mutter，无 layer-shell） | **X11 自托管**（XWayland） | 同样的底部居中；依赖 mutter 尊重 X11 定位与 keep-above |
+| X11 会话 | X11 自托管（`--host x11`，原有通道） | 底部居中，避开 panel 坞 |
+| 两者皆无 | 不定位（混成器随手摆） | 维持旧行为（大致居中） |
+
+layer-shell 通道需要编译期有 `libgtk4-layer-shell`（运行库多数发行版都带）：
+`sudo apt install libgtk4-layer-shell-dev` 后重跑 `bash scripts/build-myna-hud.sh`
+（脚本会 pkg-config 探测 `gtk4-layer-shell-0`，探测不到就自动降级，构建不断）。
+
+GNOME 扩展仍是**最优**通道（挑「焦点窗口所在显示器」、避开 dash-to-dock、崩溃自动重启），
+想要就装：
 
 ```bash
 # 1. 安装扩展（会自动给 resolve.js 打补丁：优先用 ~/.local/bin/myna-hud，不经 snap）
@@ -239,14 +253,14 @@ gnome-extensions enable myna-shell@canonical.com
 （距工作区底边 24px、避开 panel 与 dash-to-dock、点击穿透、崩溃自动重启）。
 本项目检测到扩展启用（`org.gnome.shell enabled-extensions`）就不再自己拉进程，
 不会出现两个胶囊；万一扩展 5 秒内没把渲染器拉起来，会自己拉一个兜底
-（那时位置由混成器决定）。
+（走同一条 `--anchor bottom` 通道）。
 
-> ⚠️ **不装扩展会怎样**：`myna-hud` 是一个普通窗口，位置由混成器决定
-> （GNOME 上大致是屏幕中间）—— **Myna 自己不装扩展时也是这样**，不是本项目的 bug。
 安装脚本会自动配置 `MYNA_HUD_BINARY` 环境变量，使扩展直接调用本地编译的二进制文件，无需依赖 Snap。
 
 **环境兼容性与排查**：
-- X11 或非 GNOME 环境下，扩展自动休眠，渲染器以普通窗口模式启动（支持 EWMH 定位与点击穿透）。
+- 多显示器时，无扩展通道用「指针所在显示器」（layer-shell 用 GDK 默认 output）；扩展才挑焦点显示器。单屏无差别。
+- 无扩展通道只保证「屏幕底边上方 24px」，不会额外避让底部坞（扩展会）。
+- GNOME/XWayland 通道依赖 mutter 对 X11 定位与 keep-above 的支持（高置信但未逐版本实测）；若胶囊在 GNOME 上仍然居中，装扩展即可。
 - 若出现双进程冲突，请检查扩展启用状态，或将 `config.py` 中的 `HUD_AUTO_LAUNCH` 设为 `False`。
 
 ---

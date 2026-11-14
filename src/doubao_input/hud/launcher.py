@@ -184,9 +184,18 @@ def extension_enabled() -> bool:
 def session_args() -> list[str]:
     """Extra `myna-hud` arguments for the running session.
 
-    Wayland 下由桌面(或 GNOME 的 myna-shell 扩展)负责摆放窗口,X11 下
-    myna-hud 可以自己托管窗口(`--host x11`)。
+    X11 会话:myna-hud 自己托管窗口(`--host x11`),摆到工作区底部居中。
+    Wayland 会话:没有扩展摆位时(扩展启用时这里根本不会被调到),交给
+    `--anchor bottom` —— myna-hud 按会话能力自己选:niri/sway/KDE 等支持
+    layer-shell 的合成器原生钉在屏幕底部居中(上沿 24px),GNOME(mutter
+    不支持 layer-shell)退到 XWayland 上的 X11 托管,两者皆无才是混成器
+    随手摆(居中)。
+
+    注意:$MYNA_HUD 覆盖的二进制必须认识这些参数(vendored 版都认识)。
     """
-    if not os.environ.get("WAYLAND_DISPLAY") and os.environ.get("DISPLAY"):
+    session_type = os.environ.get("XDG_SESSION_TYPE", "").strip().lower()
+    if os.environ.get("WAYLAND_DISPLAY") or session_type == "wayland":
+        return ["--anchor", "bottom"]
+    if os.environ.get("DISPLAY"):
         return ["--host", "x11"]
     return []

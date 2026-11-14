@@ -15,6 +15,12 @@ path = "src/lib.rs"
 # emits dev_lab when PROFILE==debug); enable explicitly in release with
 # --features dev-lab. Release without it is the lean shipped binary.
 dev-lab = []
+# `--anchor bottom` on Wayland compositors that speak zwlr_layer_shell_v1
+# (niri, sway, hyprland, ...). Optional because it needs libgtk4-layer-shell
+# at build time; scripts/build-myna-hud.sh probes pkg-config and adds the
+# feature only when the library is there, so a bare `cargo build` on a host
+# without it still works and `--anchor bottom` falls back to the X11 host.
+layer-shell = ["dep:gtk4-layer-shell"]
 
 [[bin]]
 name = "myna-hud"
@@ -71,6 +77,13 @@ async-io = "2"
 # The X11 status surface host (`--host x11`): EWMH properties GDK4 has no API
 # for, panel struts, and the work-area watch, on a connection of its own.
 x11rb = { version = "0.13", features = ["shape"] }
+# The Wayland status surface host (`--anchor bottom`): bottom-centre anchoring
+# on compositors that speak zwlr_layer_shell_v1 (niri, sway, hyprland, ...).
+# Mutters do not (mutter#973), which is what the GNOME myna-shell extension is
+# for; there the X11 host over XWayland covers it instead.
+# 0.7 (sys 0.5) is the last generation built against gtk4-sys 0.10 — this
+# crate's GTK — so its `links = "gtk-4"` does not conflict with ours.
+gtk4-layer-shell = { version = "0.7", optional = true }
 myna-platform = { path = "../myna-platform" }
 
 [dev-dependencies]

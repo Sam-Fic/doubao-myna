@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # 可选:在 GNOME/Wayland 上装 Myna 的 myna-shell 扩展。
 #
-# 不装也能用 —— 本项目自己会拉起 myna-hud,只是胶囊由混成器随手摆位。
-# 装了扩展之后:胶囊会被定位到"当前工作显示器"的底部居中、避开 panel 和
-# dash-to-dock、不吃焦点、崩溃自动重启,和 Myna 原版一致。
+# 不装也能用 —— 本项目自己会拉起 myna-hud,并用 `--anchor bottom` 自托管
+# 摆位:layer-shell 合成器(niri/sway/KDE…)原生钉在屏幕底部居中,GNOME
+# (mutter)走 XWayland 上的 X11 托管,同样是底部居中。
+# 装了扩展之后更好:胶囊定位到"当前焦点窗口所在显示器"的底部居中、避开
+# panel 和 dash-to-dock、不吃焦点、崩溃自动重启,和 Myna 原版一致。
 #
 # 依旧不需要 snap:扩展通过 $MYNA_HUD_BINARY 找本地编译的二进制
 # (见 resolve.js 的 override 分支),snap 那条路压根不会走。

@@ -83,12 +83,25 @@ fi
 
 # ---- 构建 ----
 
+# layer-shell feature:编译进 `--anchor bottom` 的 Wayland 原生钉底通道
+# (niri/sway/KDE 等)。需要 libgtk4-layer-shell;探测不到就退化 —— 不带
+# 该 feature 也能构建,`--anchor bottom` 会走 XWayland 上的 X11 托管。
+FEATURES=""
+if pkg-config --exists gtk4-layer-shell-0 2>/dev/null; then
+    echo "==> gtk4-layer-shell found ($(pkg-config --modversion gtk4-layer-shell-0)): building with layer-shell"
+    FEATURES="--features layer-shell"
+else
+    echo "==> gtk4-layer-shell NOT found: building without it"
+    echo "    --anchor bottom will fall back to the X11 host (XWayland)"
+    echo "    apt install libgtk4-layer-shell-dev to enable the Wayland-native path"
+fi
+
 echo "==> building myna-hud from $BUILD_SRC ($PROFILE)"
 if [ "$PROFILE" = "release" ]; then
-    ( cd "$BUILD_SRC" && cargo build --release -p myna-hud )
+    ( cd "$BUILD_SRC" && cargo build --release -p myna-hud $FEATURES )
     BINARY="$BUILD_SRC/target/release/myna-hud"
 else
-    ( cd "$BUILD_SRC" && cargo build -p myna-hud )
+    ( cd "$BUILD_SRC" && cargo build -p myna-hud $FEATURES )
     BINARY="$BUILD_SRC/target/debug/myna-hud"
 fi
 

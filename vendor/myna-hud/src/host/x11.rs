@@ -15,9 +15,13 @@
 //!   the window manager maps it in place instead of placing it. GDK rewrites
 //!   those hints right after mapping, racing the manager's read, so the
 //!   position is checked again once the window is mapped.
-//! - After every map, input refused in `WM_HINTS` and sticky requested:
-//!   GDK rewrites `WM_HINTS` and `_NET_WM_STATE` each time it maps, so
-//!   neither can be set ahead. Skip-taskbar/pager are GDK's own hints
+//! - After every map, input refused in `WM_HINTS` and sticky+above
+//!   requested: GDK rewrites `WM_HINTS` and `_NET_WM_STATE` each time it
+//!   maps, so neither can be set ahead. Sticky keeps the pill on every
+//!   workspace; above keeps it over the window being typed into — xfwm4
+//!   stacks `_NET_WM_WINDOW_TYPE_NOTIFICATION` in its notification layer
+//!   anyway, but a mutter over XWayland has no such layer and would leave
+//!   the pill underneath. Skip-taskbar/pager are GDK's own hints
 //!   ([`crate::window`]), click-through is the window's empty input region,
 //!   set again once the window manager has framed the window.
 //!
@@ -64,6 +68,7 @@ x11rb::atom_manager! {
         _NET_WM_WINDOW_TYPE_DOCK,
         _NET_WM_STATE,
         _NET_WM_STATE_STICKY,
+        _NET_WM_STATE_ABOVE,
         _NET_WORKAREA,
         _NET_CLIENT_LIST,
         _NET_ACTIVE_WINDOW,
@@ -343,14 +348,17 @@ impl X11Host {
             AtomEnum::WM_HINTS,
             &ewmh::refuse_input(&hints),
         )?;
-        let sticky = ClientMessageEvent::new(
+        // One message carries both properties (`_NET_WM_STATE`'s data[1] and
+        // data[2]): sticky for every workspace, above for stacking over the
+        // window being dictated into — see the module docs for the mutter.
+        let states = ClientMessageEvent::new(
             32,
             self.xid,
             self.atoms._NET_WM_STATE,
             [
                 STATE_ADD,
                 self.atoms._NET_WM_STATE_STICKY,
-                0,
+                self.atoms._NET_WM_STATE_ABOVE,
                 SOURCE_APPLICATION,
                 0,
             ],
@@ -359,7 +367,7 @@ impl X11Host {
             false,
             self.root,
             EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
-            sticky,
+            states,
         )?;
         self.place_mapped()
     }

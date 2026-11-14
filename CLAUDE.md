@@ -77,7 +77,11 @@ src/doubao_input/
 │   ├── publisher.py        Gio/DBus publisher. Properties only, no custom
 │   │                       signals (contract §Confinement)
 │   ├── launcher.py         spawn/supervise the myna-hud process; skips spawn
-│   │                       when the GNOME myna-shell extension is enabled
+│   │                       when the GNOME myna-shell extension is enabled.
+│   │                       session_args() picks the placement flag: Wayland
+│   │                       → `--anchor bottom` (layer-shell on niri/sway/KDE,
+│   │                       X11 host over XWayland on mutter), X11 →
+│   │                       `--host x11` — bottom-centre without the extension
 │   ├── wire.py             wire vocabulary + introspection XML
 │   └── settings.py         ~/.config/doubao-input/hud.json
 │
