@@ -1,5 +1,13 @@
 # 豆包语音输入法 Myna 界面版 for Linux
 
+<div align="center">
+  <img src="src/doubao_input/resources/logo.svg" alt="doubao-myna" width="128" height="128">
+</div>
+
+[English](README_EN.md)
+
+---
+
 ## 项目概述
 本项目为基于豆包 Web 版语音识别能力开发的全局语音输入法，专为原生 Wayland 与 GNOME 桌面环境设计。旨在解决 `xdotool` 在 Wayland 下失效以及 `wtype` 依赖 virtual-keyboard 协议（Mutter 未实现）等兼容性问题。
 本项目实现了豆包逆向逻辑（包括登录、WebSocket ASR、音频采集），并重构了触发、注入与 UI 交互机制。
@@ -11,12 +19,8 @@
 
 ## 界面展示
 
-**项目图标**
-采用 Myna 图标（scalable SVG，安装至 hicolor `scalable/apps/`）：
-![Logo](src/doubao_input/resources/logo.svg)
-
 **控制窗口**
-应用程序主面板（v1.1.0 起采用 libadwaita 三页布局：账号 / 输入 / 诊断）。![Control window](docs/images/control-window.png)
+应用程序主面板（libadwaita 三页布局：账号 / 输入 / 诊断）。![Control window](docs/images/control-window.png)
 
 ---
 
