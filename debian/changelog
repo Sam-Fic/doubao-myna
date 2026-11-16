@@ -1,3 +1,17 @@
+doubao-input (1.1.8-1) noble; urgency=medium
+
+  * packaging: fix the generated postinst aborting dpkg configure
+    (package left in iF state). Two comments in step 4 of
+    debian/postinst quoted the debhelper placeholder token literally;
+    dh_installdeb replaces *every* occurrence of it, comment or not,
+    injecting the systemd enable snippet mid-comment and leaving the
+    trailing comment words as bare shell commands, which `set -e` then
+    turned into a configure failure. The comments now refer to the
+    generated section in prose, and carry a note so the token is never
+    written out again.
+
+ -- doubao-input contributors <code-dream@qq.com>  Mon, 16 Nov 2026 23:58:00 +0800
+
 doubao-input (1.1.7-1) noble; urgency=medium
 
   * The dictation capsule now places itself at the bottom-centre of the
