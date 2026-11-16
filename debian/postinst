@@ -85,7 +85,7 @@ case "$1" in
         # 也救不了,退出码是 0)。新版改成 WantedBy=graphical-session.target,
         # 但**继承下来的旧符号链接还在**,会继续在错误时机拉起我们。
         #
-        # 这里把旧链接拆掉。新的 enable 交给下面的 #DEBHELPER# 段 ——
+        # 这里把旧链接拆掉。新的 enable 交给文件末尾 debhelper 生成的段 ——
         # dh_installsystemd 读的是 deb-systemd-helper 的 state 文件(不是读
         # 链接),会按新的 WantedBy=graphical-session.target 重建;用户主动
         # 关掉的自启也不会被误开。
@@ -110,7 +110,11 @@ case "$1" in
                 echo "doubao-input postinst: 清掉旧的自启链接 $OLD_LINK"
             fi
         fi
-        # 重新 enable 交给下面的 #DEBHELPER# 段。
+        # 重新 enable 交给文件末尾 debhelper 生成的段。
+        #
+        # 注意: 这两处注释不要写 debhelper 占位符的字面量(井号+DEBHELPER),
+        # dh_installdeb 会把文件里**每一处**该字面量都替换成生成的脚本段,
+        # 注释也不例外, 残留的注释文字会变成裸 shell 词, set -e 下直接炸。
 
         echo
         echo "=== doubao-input 安装完成 ==="
