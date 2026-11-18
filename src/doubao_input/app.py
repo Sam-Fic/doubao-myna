@@ -522,6 +522,10 @@ class DoubaoInputApp(Gtk.Application):
             self._notifier.set_state(wire_state, message)
 
     def _indicator_text(self, message: str) -> None:
+        # 只在会话进行中更新文本:迟到的识别结果不能把已隐藏的胶囊
+        # 重新推回 RECORDING —— 那之后没有任何迁移会再把它藏回去。
+        if self.app_state.recording_state == RecordingState.IDLE:
+            return
         if self._hud is not None:
             self._hud.set_state(RECORDING, message)
 

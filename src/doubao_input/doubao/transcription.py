@@ -169,6 +169,12 @@ class TranscriptionManager:
         return GLib.SOURCE_REMOVE
 
     def _on_asr_result(self, text: str) -> bool:
+        # 会话已经结束(finish / 安全超时 / 取消先到一步):丢弃迟到的结果。
+        # 否则 on_overlay_update 会把已隐藏的胶囊重新推回 RECORDING,而之后
+        # 再没有任何状态迁移把它藏回去 —— 胶囊就永久停在屏幕底部。
+        if self.app_state.recording_state == RecordingState.IDLE:
+            logger.info("Dropping late ASR result (session already idle)")
+            return GLib.SOURCE_REMOVE
         self.app_state.transcription_text = text
         if self.on_overlay_update:
             self.on_overlay_update(text)

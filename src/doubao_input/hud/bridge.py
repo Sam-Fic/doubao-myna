@@ -219,7 +219,12 @@ class MynaHudBridge:
             self._stop_ticker()
 
     def _on_text(self, _state: AppState, _value: str) -> None:
-        if self._app_state.recording_state == RecordingState.IDLE:
+        # 只在 STARTING/RECORDING 时把文本画进胶囊:STOPPING 期间保持
+        # FINALIZING(别被迟到的结果闪回“正在收音”),IDLE 时绝不再点亮。
+        if self._app_state.recording_state not in (
+            RecordingState.STARTING,
+            RecordingState.RECORDING,
+        ):
             return
         self.set_state(RECORDING, self._status_text())
 
